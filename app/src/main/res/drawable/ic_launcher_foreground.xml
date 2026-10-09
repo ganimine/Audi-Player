@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ambient glowing rounded disc inside 66dp safe zone -->
+    <path
+        android:pathData="M54,26 C69.46,26 82,38.54 82,54 C82,69.46 69.46,82 54,82 C38.54,82 26,69.46 26,54 C26,38.54 38.54,26 54,26 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="26"
+                android:startY="26"
+                android:endX="82"
+                android:endY="82"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF2473" />
+                <item android:offset="0.5" android:color="#FA233B" />
+                <item android:offset="1.0" android:color="#FF7A00" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Sleek inner glass disc rim -->
+    <path
+        android:strokeWidth="1.5"
+        android:pathData="M54,27.5 C68.63,27.5 80.5,39.37 80.5,54 C80.5,68.63 68.63,80.5 54,80.5 C39.37,80.5 27.5,68.63 27.5,54 C27.5,39.37 39.37,27.5 54,27.5 Z">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="28"
+                android:startY="28"
+                android:endX="80"
+                android:endY="80"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#99FFFFFF" />
+                <item android:offset="1.0" android:color="#22FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Play triangle & Apple Music note hybrid inside disc -->
+    <!-- Stylized prominent Play polygon -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M47,40 L67,54 L47,68 Z" />
+
+    <!-- Waveform aura bars on right -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M70,47 L72,47 L72,61 L70,61 Z" />
+    <path
+        android:fillColor="#DDFFFFFF"
+        android:pathData="M74,50 L75.5,50 L75.5,58 L74,58 Z" />
+
+    <!-- VLC style vibrant accent band -->
+    <path
+        android:pathData="M47,48 L58,54 L47,56 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="47"
+                android:startY="48"
+                android:endX="58"
+                android:endY="56"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFE880" />
+                <item android:offset="1.0" android:color="#FFA033" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>
