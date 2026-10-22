@@ -6,68 +6,150 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ambient glowing rounded disc inside 66dp safe zone -->
+    <!-- HEADPHONE HEADBAND TOP ARCH (Spans 66dp safe zone) -->
+    <!-- Headband outer band -->
     <path
-        android:pathData="M54,26 C69.46,26 82,38.54 82,54 C82,69.46 69.46,82 54,82 C38.54,82 26,69.46 26,54 C26,38.54 38.54,26 54,26 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startX="26"
-                android:startY="26"
-                android:endX="82"
-                android:endY="82"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#FF2473" />
-                <item android:offset="0.5" android:color="#FA233B" />
-                <item android:offset="1.0" android:color="#FF7A00" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:strokeWidth="3.2"
+        android:strokeColor="#708096"
+        android:strokeLineCap="round"
+        android:pathData="M33,56 C33,35 42,26 54,26 C66,26 75,35 75,56" />
 
-    <!-- Sleek inner glass disc rim -->
+    <!-- Headband colored inner accent band in Google Green and Blue -->
     <path
-        android:strokeWidth="1.5"
-        android:pathData="M54,27.5 C68.63,27.5 80.5,39.37 80.5,54 C80.5,68.63 68.63,80.5 54,80.5 C39.37,80.5 27.5,68.63 27.5,54 C27.5,39.37 39.37,27.5 54,27.5 Z">
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M37,42 C41,32 47,28.5 54,28.5">
         <aapt:attr name="android:strokeColor">
             <gradient
-                android:startX="28"
-                android:startY="28"
-                android:endX="80"
-                android:endY="80"
+                android:startX="37"
+                android:startY="42"
+                android:endX="54"
+                android:endY="28.5"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#99FFFFFF" />
-                <item android:offset="1.0" android:color="#22FFFFFF" />
+                <item android:offset="0.0" android:color="#34A853" />
+                <item android:offset="1.0" android:color="#4285F4" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M54,28.5 C61,28.5 67,32 71,42">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="54"
+                android:startY="28.5"
+                android:endX="71"
+                android:endY="42"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#4285F4" />
+                <item android:offset="1.0" android:color="#EA4335" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- Play triangle & Apple Music note hybrid inside disc -->
-    <!-- Stylized prominent Play polygon -->
+    <!-- LEFT EAR CUP (Ergonomic cushion + metallic cup) -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M47,40 L67,54 L47,68 Z" />
+        android:fillColor="#1E293B"
+        android:pathData="M27,47 h6 a3,3 0 0,1 3,3 v14 a3,3 0 0,1 -3,3 h-6 a3,3 0 0,1 -3,-3 v-14 a3,3 0 0,1 3,-3 z" />
+    <path
+        android:fillColor="#34A853"
+        android:pathData="M31.5,49 h2 a1.5,1.5 0 0,1 1.5,1.5 v11 a1.5,1.5 0 0,1 -1.5,1.5 h-2 z" />
+    <path
+        android:strokeWidth="1.2"
+        android:strokeColor="#FBBC05"
+        android:strokeLineCap="round"
+        android:pathData="M26,50 v12" />
 
-    <!-- Waveform aura bars on right -->
+    <!-- RIGHT EAR CUP (Ergonomic cushion + metallic cup) -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M70,47 L72,47 L72,61 L70,61 Z" />
+        android:fillColor="#1E293B"
+        android:pathData="M75,47 h6 a3,3 0 0,1 3,3 v14 a3,3 0 0,1 -3,3 h-6 a3,3 0 0,1 -3,-3 v-14 a3,3 0 0,1 3,-3 z" />
     <path
-        android:fillColor="#DDFFFFFF"
-        android:pathData="M74,50 L75.5,50 L75.5,58 L74,58 Z" />
+        android:fillColor="#EA4335"
+        android:pathData="M73,49 h2 a1.5,1.5 0 0,1 1.5,1.5 v11 a1.5,1.5 0 0,1 -1.5,1.5 h-2 z" />
+    <path
+        android:strokeWidth="1.2"
+        android:strokeColor="#4285F4"
+        android:strokeLineCap="round"
+        android:pathData="M82,50 v12" />
 
-    <!-- VLC style vibrant accent band -->
+    <!-- CENTRAL MUSIC DISC / PLAYER CORE -->
+    <!-- Disc outer dark circle -->
     <path
-        android:pathData="M47,48 L58,54 L47,56 Z">
+        android:fillColor="#0B0F19"
+        android:pathData="M54,36 A18,18 0 1,1 53.9,36 Z" />
+
+    <!-- GOOGLE-COLORED 4-SEGMENT RING (R=18, thickness 3.2dp) -->
+    <!-- Top-Right: Google Blue (#4285F4) -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#4285F4"
+        android:strokeLineCap="round"
+        android:pathData="M54,36 A18,18 0 0,1 72,54" />
+
+    <!-- Bottom-Right: Google Red (#EA4335) -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#EA4335"
+        android:strokeLineCap="round"
+        android:pathData="M72,54 A18,18 0 0,1 54,72" />
+
+    <!-- Bottom-Left: Google Yellow (#FBBC05) -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#FBBC05"
+        android:strokeLineCap="round"
+        android:pathData="M54,72 A18,18 0 0,1 36,54" />
+
+    <!-- Top-Left: Google Green (#34A853) -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#34A853"
+        android:strokeLineCap="round"
+        android:pathData="M36,54 A18,18 0 0,1 54,36" />
+
+    <!-- Inner Disc surface -->
+    <path
+        android:pathData="M54,41 A13,13 0 1,1 53.9,41 Z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="47"
-                android:startY="48"
-                android:endX="58"
-                android:endY="56"
+                android:startX="41"
+                android:startY="41"
+                android:endX="67"
+                android:endY="67"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#FFE880" />
-                <item android:offset="1.0" android:color="#FFA033" />
+                <item android:offset="0.0" android:color="#2A354C" />
+                <item android:offset="1.0" android:color="#131926" />
             </gradient>
         </aapt:attr>
     </path>
+
+    <!-- Inner circular rim highlight -->
+    <path
+        android:strokeWidth="0.8"
+        android:strokeColor="#50FFFFFF"
+        android:pathData="M54,41.5 A12.5,12.5 0 1,1 53.9,41.5 Z" />
+
+    <!-- SLEEK WHITE PLAY BUTTON TRIANGLE -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M50,46.5 C50,45.7 50.8,45.2 51.5,45.6 L61.5,52.1 C62.2,52.5 62.2,53.5 61.5,53.9 L51.5,60.4 C50.8,60.8 50,60.3 50,59.5 Z" />
+
+    <!-- SOUNDWAVE EQUALIZER BARS (Left channel - between cup and disc) -->
+    <path
+        android:fillColor="#FBBC05"
+        android:pathData="M38.5,51.5 h1.5 v5 h-1.5 z" />
+    <path
+        android:fillColor="#34A853"
+        android:pathData="M41,49.5 h1.5 v9 h-1.5 z" />
+
+    <!-- SOUNDWAVE EQUALIZER BARS (Right channel - between disc and cup) -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M65.5,49.5 h1.5 v9 h-1.5 z" />
+    <path
+        android:fillColor="#EA4335"
+        android:pathData="M68,51.5 h1.5 v5 h-1.5 z" />
 
 </vector>

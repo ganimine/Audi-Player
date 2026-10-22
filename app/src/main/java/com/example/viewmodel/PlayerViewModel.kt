@@ -4,12 +4,14 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.AppSettingsManager
 import com.example.data.DemoMediaData
 import com.example.data.MediaScanner
 import com.example.data.db.AppDatabase
 import com.example.data.db.PlaybackHistoryEntity
 import com.example.data.db.PlaylistEntity
 import com.example.data.db.PlaylistItemEntity
+import com.example.headset.HeadsetController
 import com.example.model.AccentTheme
 import com.example.model.CustomSkinConfig
 import com.example.model.MediaItemData
@@ -33,7 +35,162 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val db = AppDatabase.getInstance(application)
     private val playlistDao = db.playlistDao()
 
-    val playerController = AuraPlayerController(application)
+    val settingsManager = AppSettingsManager(application)
+
+    // App Settings: Startup Screen, Video Files Visibility, Search History
+    private val _showHomeScreenOnStartup = MutableStateFlow(settingsManager.showHomeScreenOnStartup)
+    val showHomeScreenOnStartup: StateFlow<Boolean> = _showHomeScreenOnStartup.asStateFlow()
+
+    private val _defaultStartupScreen = MutableStateFlow(settingsManager.defaultStartupScreen)
+    val defaultStartupScreen: StateFlow<Int> = _defaultStartupScreen.asStateFlow()
+
+    private val _rememberLastScreen = MutableStateFlow(settingsManager.rememberLastScreen)
+    val rememberLastScreen: StateFlow<Boolean> = _rememberLastScreen.asStateFlow()
+
+    private val _showVideoFiles = MutableStateFlow(settingsManager.showVideoFiles)
+    val showVideoFiles: StateFlow<Boolean> = _showVideoFiles.asStateFlow()
+
+    private val _autoPlayVideos = MutableStateFlow(settingsManager.autoPlayVideos)
+    val autoPlayVideos: StateFlow<Boolean> = _autoPlayVideos.asStateFlow()
+
+    private val _resumePreviousPlayback = MutableStateFlow(settingsManager.resumePreviousPlayback)
+    val resumePreviousPlayback: StateFlow<Boolean> = _resumePreviousPlayback.asStateFlow()
+
+    private val _searchHistoryEnabled = MutableStateFlow(settingsManager.searchHistoryEnabled)
+    val searchHistoryEnabled: StateFlow<Boolean> = _searchHistoryEnabled.asStateFlow()
+
+    private val _searchHistory = MutableStateFlow(settingsManager.getSearchHistory())
+    val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
+
+    private val _isFullScreenSearchOpen = MutableStateFlow(false)
+    val isFullScreenSearchOpen: StateFlow<Boolean> = _isFullScreenSearchOpen.asStateFlow()
+
+    val playerController = AuraPlayerController.getOrCreate(application)
+
+    // Hardware Headset & Earphones Controller
+    val headsetController = HeadsetController(
+        context = application,
+        onPlayPause = { playerController.togglePlayPause() },
+        onNext = { playerController.playNext() },
+        onPrevious = { playerController.playPrevious() },
+        onIncomingCall = { playerController.interruptionManager.checkCallAndAudioInterruption() }
+    )
+
+    // Audio Interruption, Dialer/VoIP Call Auto-Stop & Notification Ducking
+    val interruptionManager = playerController.interruptionManager
+    val interruptionStatus: StateFlow<String?> = interruptionManager.interruptionStatus
+    val isDucked: StateFlow<Boolean> = interruptionManager.isDucked
+    val activeCallState: StateFlow<String> = interruptionManager.activeCallState
+    val autoResumeOnCallEnd: StateFlow<Boolean> = interruptionManager.autoResumeOnCallEnd
+    val duckVolumeFactor: StateFlow<Float> = interruptionManager.duckVolumeFactor
+    val dedicatedCallInterruptionOnly: StateFlow<Boolean> = interruptionManager.dedicatedCallInterruptionOnly
+
+    fun setDedicatedCallInterruptionOnly(enabled: Boolean) {
+        interruptionManager.setDedicatedCallInterruptionOnly(enabled)
+    }
+
+    fun setAutoResumeOnCallEnd(enabled: Boolean) {
+        interruptionManager.setAutoResumeOnCallEnd(enabled)
+    }
+
+    fun setDuckVolumeFactor(factor: Float) {
+        interruptionManager.setDuckVolumeFactor(factor)
+    }
+
+    fun clearInterruptionStatus() {
+        interruptionManager.clearStatus()
+    }
+
+    fun simulateDialerCall() {
+        interruptionManager.simulateDialerCall()
+    }
+
+    fun simulateInAppVoipCall() {
+        interruptionManager.simulateInAppVoipCall()
+    }
+
+    fun simulateNotificationDucking() {
+        interruptionManager.simulateNotificationDucking()
+    }
+
+    // Vehicle Motion & Driving Mode Restriction Manager
+    val drivingModeManager = playerController.drivingModeManager
+    val isVehicleMoving: StateFlow<Boolean> = drivingModeManager.isVehicleMoving
+    val currentSpeedKmh: StateFlow<Float> = drivingModeManager.currentSpeedKmh
+    val motionStatusDescription: StateFlow<String> = drivingModeManager.motionStatusDescription
+    val isDrivingRestrictionEnabled: StateFlow<Boolean> = drivingModeManager.isDrivingRestrictionEnabled
+    val isSimulatingMotion: StateFlow<Boolean> = drivingModeManager.isSimulatingMotion
+    val lastDrivingRestrictionMessage: StateFlow<String?> = drivingModeManager.lastRestrictionMessage
+
+    fun setDrivingRestrictionEnabled(enabled: Boolean) {
+        drivingModeManager.setDrivingRestrictionEnabled(enabled)
+    }
+
+    fun simulateSpeed(speedKmh: Float) {
+        drivingModeManager.simulateSpeed(speedKmh)
+    }
+
+    fun simulateDrivingCycle(targetSpeedKmh: Float = 55.0f, durationSecs: Int = 15) {
+        drivingModeManager.simulateDrivingCycle(targetSpeedKmh, durationSecs)
+    }
+
+    fun stopSimulation() {
+        drivingModeManager.stopSimulation()
+    }
+
+    fun clearDrivingRestrictionMessage() {
+        drivingModeManager.clearRestrictionMessage()
+    }
+
+    private val audioManager = application.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+    private val _streamVolume = MutableStateFlow(audioManager?.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) ?: 10)
+    val streamVolume: StateFlow<Int> = _streamVolume.asStateFlow()
+    val maxStreamVolume: Int = audioManager?.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC) ?: 15
+
+    fun updateStreamVolume() {
+        audioManager?.let { am ->
+            _streamVolume.value = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+        }
+    }
+
+    fun setStreamVolume(volume: Int) {
+        audioManager?.let { am ->
+            val clamped = volume.coerceIn(0, maxStreamVolume)
+            am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, clamped, android.media.AudioManager.FLAG_SHOW_UI)
+            _streamVolume.value = clamped
+        }
+    }
+
+    fun adjustVolumeRelative(delta: Int) {
+        audioManager?.let { am ->
+            val direction = if (delta > 0) android.media.AudioManager.ADJUST_RAISE else android.media.AudioManager.ADJUST_LOWER
+            am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, direction, android.media.AudioManager.FLAG_SHOW_UI)
+            _streamVolume.value = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+        }
+    }
+
+    private val _isHeadsetControlsDialogOpen = MutableStateFlow(false)
+    val isHeadsetControlsDialogOpen: StateFlow<Boolean> = _isHeadsetControlsDialogOpen.asStateFlow()
+
+    fun setHeadsetControlsDialogOpen(open: Boolean) {
+        _isHeadsetControlsDialogOpen.value = open
+    }
+
+    // 4MB-5MB strict size filter toggle (Default: true per user request)
+    private val _strict4to5MbFilter = MutableStateFlow(true)
+    val strict4to5MbFilter: StateFlow<Boolean> = _strict4to5MbFilter.asStateFlow()
+
+    fun setStrict4to5MbFilter(enabled: Boolean) {
+        _strict4to5MbFilter.value = enabled
+    }
+
+    // Import status notification message
+    private val _importStatusMessage = MutableStateFlow<String?>(null)
+    val importStatusMessage: StateFlow<String?> = _importStatusMessage.asStateFlow()
+
+    fun clearImportStatusMessage() {
+        _importStatusMessage.value = null
+    }
 
     // Master media list
     private val _masterMediaList = MutableStateFlow<List<MediaItemData>>(DemoMediaData.SAMPLE_TRACKS)
@@ -43,16 +200,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _activeFilter = MutableStateFlow("All") // "All", "Audio", "Video", "Large Files (>2.5MB)"
+    private val _activeFilter = MutableStateFlow("All") // "All", "4MB - 5MB Only", "Audio", "Video", "Large Files (>2.5MB)"
     val activeFilter: StateFlow<String> = _activeFilter.asStateFlow()
 
     // Filtered media list
     val filteredMediaList: StateFlow<List<MediaItemData>> = combine(
         _masterMediaList,
         _searchQuery,
-        _activeFilter
-    ) { list, query, filter ->
+        _activeFilter,
+        _showVideoFiles
+    ) { list, query, filter, showVideos ->
         list.filter { item ->
+            // Always exclude call recording files
+            if (item.isCallRecording()) return@filter false
+
+            // Hide videos by default unless showVideoFiles is enabled OR user explicitly selected "Video" filter
+            if (item.isVideo && !showVideos && filter != "Video") {
+                return@filter false
+            }
+
             val matchesQuery = query.isBlank() ||
                     item.title.contains(query, ignoreCase = true) ||
                     item.artist.contains(query, ignoreCase = true) ||
@@ -60,6 +226,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     item.container.contains(query, ignoreCase = true)
 
             val matchesFilter = when (filter) {
+                "4MB - 5MB Only" -> item.isTargetSize4to5Mb
                 "Audio" -> !item.isVideo
                 "Video" -> item.isVideo
                 "Large Files (>2.5MB)" -> item.isLargeFile
@@ -68,18 +235,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             matchesQuery && matchesFilter
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DemoMediaData.SAMPLE_TRACKS)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DemoMediaData.SAMPLE_TRACKS.filter { !it.isVideo })
 
     // Playlists Flow
     private val _playlists = MutableStateFlow<List<Playlist>>(DemoMediaData.INITIAL_PLAYLISTS)
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
 
-    // Navigation and Sheets State
-    private val _selectedTab = MutableStateFlow(0) // 0: Listen Now, 1: Library, 2: Playlists, 3: Equalizer, 4: Settings
+    // Navigation and Sheets State: Default startup screen (Library by default if Home on startup is disabled)
+    private val _selectedTab = MutableStateFlow(
+        when {
+            settingsManager.showHomeScreenOnStartup -> 0
+            settingsManager.rememberLastScreen -> {
+                if (settingsManager.lastSelectedTab == 0) 1 else settingsManager.lastSelectedTab
+            }
+            else -> settingsManager.defaultStartupScreen
+        }
+    )
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
     private val _isNowPlayingExpanded = MutableStateFlow(false)
     val isNowPlayingExpanded: StateFlow<Boolean> = _isNowPlayingExpanded.asStateFlow()
+
+    private val _isCarDashboardOpen = MutableStateFlow(false)
+    val isCarDashboardOpen: StateFlow<Boolean> = _isCarDashboardOpen.asStateFlow()
 
     private val _isCodecInfoOpen = MutableStateFlow(false)
     val isCodecInfoOpen: StateFlow<Boolean> = _isCodecInfoOpen.asStateFlow()
@@ -119,9 +297,68 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
     init {
+        val initialList = if (_showVideoFiles.value) _masterMediaList.value else _masterMediaList.value.filter { !it.isVideo }
+        playerController.setLibraryTracks(initialList)
+        playerController.setInitialQueue(initialList)
         loadPersistedPlaylists()
         observeFavoritesAndHistory()
         observeWidgetSync()
+    }
+
+    fun setShowHomeScreenOnStartup(enabled: Boolean) {
+        _showHomeScreenOnStartup.value = enabled
+        settingsManager.showHomeScreenOnStartup = enabled
+    }
+
+    fun setDefaultStartupScreen(screen: Int) {
+        _defaultStartupScreen.value = screen
+        settingsManager.defaultStartupScreen = screen
+    }
+
+    fun setRememberLastScreen(enabled: Boolean) {
+        _rememberLastScreen.value = enabled
+        settingsManager.rememberLastScreen = enabled
+    }
+
+    fun setShowVideoFiles(enabled: Boolean) {
+        _showVideoFiles.value = enabled
+        settingsManager.showVideoFiles = enabled
+        val list = if (enabled) _masterMediaList.value else _masterMediaList.value.filter { !it.isVideo }
+        playerController.setLibraryTracks(list)
+    }
+
+    fun setAutoPlayVideos(enabled: Boolean) {
+        _autoPlayVideos.value = enabled
+        settingsManager.autoPlayVideos = enabled
+    }
+
+    fun setResumePreviousPlayback(enabled: Boolean) {
+        _resumePreviousPlayback.value = enabled
+        settingsManager.resumePreviousPlayback = enabled
+    }
+
+    fun setSearchHistoryEnabled(enabled: Boolean) {
+        _searchHistoryEnabled.value = enabled
+        settingsManager.searchHistoryEnabled = enabled
+    }
+
+    fun setFullScreenSearchOpen(open: Boolean) {
+        _isFullScreenSearchOpen.value = open
+    }
+
+    fun addSearchHistory(query: String) {
+        settingsManager.addSearchQuery(query)
+        _searchHistory.value = settingsManager.getSearchHistory()
+    }
+
+    fun removeSearchHistory(query: String) {
+        settingsManager.removeSearchQuery(query)
+        _searchHistory.value = settingsManager.getSearchHistory()
+    }
+
+    fun clearSearchHistory() {
+        settingsManager.clearSearchHistory()
+        _searchHistory.value = emptyList()
     }
 
     private fun observeWidgetSync() {
@@ -190,10 +427,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectTab(tabIndex: Int) {
         _selectedTab.value = tabIndex
+        if (_rememberLastScreen.value) {
+            settingsManager.lastSelectedTab = tabIndex
+        }
     }
 
     fun setNowPlayingExpanded(expanded: Boolean) {
         _isNowPlayingExpanded.value = expanded
+    }
+
+    fun setCarDashboardOpen(open: Boolean) {
+        _isCarDashboardOpen.value = open
     }
 
     fun setCodecInfoOpen(open: Boolean) {
@@ -256,6 +500,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun playMedia(media: MediaItemData, customQueue: List<MediaItemData>? = null) {
+        if (media.isVideo) {
+            val allowed = playerController.drivingModeManager.checkVideoAllowedAndNotify(showToast = true)
+            if (!allowed) {
+                playerController.setAudioOnlyForVideo(true)
+                playerController.setDrivingWarning(
+                    "While driving not possible to open video because in driving mode. Playing Audio Only."
+                )
+            } else {
+                playerController.setAudioOnlyForVideo(false)
+                playerController.clearDrivingWarning()
+            }
+        } else {
+            playerController.setAudioOnlyForVideo(false)
+            playerController.clearDrivingWarning()
+        }
         val queueToUse = customQueue ?: _masterMediaList.value
         playerController.playMedia(media, queueToUse)
         viewModelScope.launch {
@@ -282,18 +541,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * Import a file chosen via SAF file picker.
-     * Fully reads metadata and file sizes > 2.5MB!
+     * Enforces size restriction (4MB-5MB) and rejects call recordings.
      */
     fun importFileUri(uri: Uri) {
         viewModelScope.launch {
             try {
-                val media = MediaScanner.resolveMediaFromUri(getApplication(), uri)
+                val media = MediaScanner.resolveMediaFromUri(
+                    getApplication(),
+                    uri,
+                    strict4to5Mb = _strict4to5MbFilter.value,
+                    excludeCallRecordings = true
+                )
                 val current = _masterMediaList.value.toMutableList()
                 current.add(0, media)
                 _masterMediaList.value = current
+                val audioFiltered = if (_showVideoFiles.value) current else current.filter { !it.isVideo }
+                playerController.setLibraryTracks(audioFiltered)
+                _importStatusMessage.value = "Imported: ${media.title} (${media.formattedFileSize})"
                 playMedia(media)
                 _isNowPlayingExpanded.value = true
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                _importStatusMessage.value = e.message ?: "Failed to import selected media."
+            }
         }
     }
 
@@ -319,20 +588,45 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val current = _masterMediaList.value.toMutableList()
         current.add(0, streamItem)
         _masterMediaList.value = current
+        val audioFiltered = if (_showVideoFiles.value) current else current.filter { !it.isVideo }
+        playerController.setLibraryTracks(audioFiltered)
         playMedia(streamItem)
         _isNowPlayingExpanded.value = true
     }
 
-    fun scanDeviceStorage() {
+    fun scanDeviceStorage(silent: Boolean = false) {
         viewModelScope.launch {
             _isScanning.value = true
             try {
-                val localItems = MediaScanner.queryDeviceMedia(getApplication())
+                val localItems = MediaScanner.queryDeviceMedia(
+                    getApplication(),
+                    strict4to5Mb = _strict4to5MbFilter.value,
+                    excludeCallRecordings = true,
+                    includeVideos = _showVideoFiles.value
+                )
                 if (localItems.isNotEmpty()) {
                     val combined = (localItems + _masterMediaList.value).distinctBy { it.uri }
                     _masterMediaList.value = combined
+                    val audioFiltered = if (_showVideoFiles.value) combined else combined.filter { !it.isVideo }
+                    playerController.setLibraryTracks(audioFiltered)
+                    playerController.setInitialQueue(audioFiltered)
+                    if (!silent) {
+                        _importStatusMessage.value = "Scanned: Added ${localItems.size} tracks (4MB-5MB only, no call recordings)"
+                    }
+                } else {
+                    if (!silent) {
+                        _importStatusMessage.value = if (_strict4to5MbFilter.value) {
+                            "Scan complete: No 4MB-5MB audio/video tracks found on device."
+                        } else {
+                            "Scan complete: No media found."
+                        }
+                    }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                if (!silent) {
+                    _importStatusMessage.value = "Scan error: ${e.message}"
+                }
+            }
             _isScanning.value = false
         }
     }
@@ -380,5 +674,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         super.onCleared()
         playerController.release()
+        headsetController.release()
     }
 }

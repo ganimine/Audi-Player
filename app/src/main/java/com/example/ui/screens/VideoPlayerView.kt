@@ -279,7 +279,7 @@ fun VideoPlayerView(
             }
         }
 
-        // Sleek Video Controls Overlay (Apple Music frosted glass + VLC controls)
+        // Sleek Video Controls Overlay (Apple Music frosted glass + AUDI controls)
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn(),

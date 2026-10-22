@@ -13,7 +13,7 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.auraplayer.kvtx"
+    applicationId = "com.ganimine.player"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -110,6 +110,7 @@ dependencies {
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.session)
   implementation(libs.androidx.media3.common)
+  implementation(libs.androidx.car.app)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:

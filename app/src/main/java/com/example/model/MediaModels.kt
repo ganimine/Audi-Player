@@ -21,14 +21,14 @@ enum class AspectRatioMode(val label: String) {
 
 enum class VisualizerStyle(val displayName: String) {
     WAVEFORM("Liquid Wave"),
-    SPECTRUM("VLC Bars"),
+    SPECTRUM("AUDI Bars"),
     VINYL("Vinyl Disc"),
     MINIMAL_PULSE("Ambient Glow")
 }
 
 enum class AccentTheme(val displayName: String, val hexColor: Long) {
     APPLE_RED("Apple Crimson", 0xFFFA233B),
-    VLC_ORANGE("VLC Amber", 0xFFFF6A00),
+    AUDI_ORANGE("AUDI Amber", 0xFFFF6A00),
     NEON_CYAN("Cyber Cyan", 0xFF00E5FF),
     ELECTRIC_PURPLE("Aura Purple", 0xFFAF52DE),
     EMERALD_GREEN("Neon Mint", 0xFF30D158),
@@ -184,7 +184,7 @@ data class CustomSkinConfig(
 )
 
 data class WidgetSettingsConfig(
-    val widgetTheme: String = "Matches Skin", // "Matches Skin", "Apple Frosted Glass", "AMOLED Black", "VLC Orange"
+    val widgetTheme: String = "Matches Skin", // "Matches Skin", "Apple Frosted Glass", "AMOLED Black", "AUDI Amber"
     val widgetOpacity: Float = 0.90f,
     val showArtwork: Boolean = true,
     val showProgressBar: Boolean = true,
@@ -241,6 +241,67 @@ data class MediaItemData(
 
     val isLargeFile: Boolean
         get() = fileSize >= 2.5 * 1024 * 1024
+
+    val isTargetSize4to5Mb: Boolean
+        get() = fileSize in (4L * 1024 * 1024)..(5L * 1024 * 1024 + 512 * 1024)
+
+    fun isCallRecording(): Boolean {
+        val keywords = listOf(
+            "call", "recording", "call_rec", "recorder", "callrec",
+            "phone_call", "voice_rec", "voicerecord", "sound_recorder",
+            "callrecording", "audio_record", "call_history", "call@"
+        )
+        val text = "${title.lowercase()} ${artist.lowercase()} ${album.lowercase()}"
+        return keywords.any { text.contains(it) }
+    }
+
+    fun toMedia3MediaItem(): androidx.media3.common.MediaItem {
+        val autoExtras = android.os.Bundle().apply {
+            putBoolean("android.media.browse.CONTENT_STYLE_SUPPORTED", true)
+            putInt("android.media.browse.CONTENT_STYLE_BROWSABLE_HINT", 1) // List layout
+            putInt("android.media.browse.CONTENT_STYLE_PLAYABLE_HINT", 1) // List layout
+            putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS", true)
+            putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_NEXT", true)
+        }
+
+        val metadataBuilder = androidx.media3.common.MediaMetadata.Builder()
+            .setTitle(title)
+            .setDisplayTitle(title)
+            .setArtist(artist)
+            .setAlbumArtist(artist)
+            .setAlbumTitle(album)
+            .setIsPlayable(true)
+            .setIsBrowsable(false)
+            .setMediaType(
+                if (isVideo) androidx.media3.common.MediaMetadata.MEDIA_TYPE_VIDEO
+                else androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC
+            )
+            .setExtras(autoExtras)
+
+        if (!artworkUrl.isNullOrBlank()) {
+            try {
+                metadataBuilder.setArtworkUri(android.net.Uri.parse(artworkUrl))
+            } catch (_: Exception) {}
+        }
+
+        val targetUri = when {
+            uri.startsWith("content://") || uri.startsWith("http://") || uri.startsWith("https://") || uri.startsWith("file://") || uri.startsWith("android.resource://") -> {
+                android.net.Uri.parse(uri)
+            }
+            uri.startsWith("/") -> {
+                android.net.Uri.fromFile(java.io.File(uri))
+            }
+            else -> {
+                android.net.Uri.parse(uri)
+            }
+        }
+
+        return androidx.media3.common.MediaItem.Builder()
+            .setMediaId(id)
+            .setUri(targetUri)
+            .setMediaMetadata(metadataBuilder.build())
+            .build()
+    }
 }
 
 data class Playlist(

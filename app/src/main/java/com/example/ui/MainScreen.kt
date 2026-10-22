@@ -61,9 +61,13 @@ import coil.compose.AsyncImage
 import com.example.model.CustomSkinConfig
 import com.example.model.SkinPreset
 import com.example.ui.components.AppleMiniPlayer
+import com.example.ui.components.TopNavMiniPlayer
 import com.example.ui.screens.AddToPlaylistDialog
+import com.example.ui.screens.CarDashboardScreen
 import com.example.ui.screens.CodecInfoDialog
 import com.example.ui.screens.EqualizerScreen
+import com.example.ui.screens.FullScreenSearchScreen
+import com.example.ui.screens.HeadsetControlsDialog
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.ListenNowScreen
 import com.example.ui.screens.NowPlayingScreen
@@ -80,6 +84,7 @@ fun MainScreen(
     viewModel: PlayerViewModel,
     modifier: Modifier = Modifier
 ) {
+    val appName by viewModel.appName.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val controller = viewModel.playerController
     val currentMedia by controller.currentMedia.collectAsState()
@@ -87,10 +92,15 @@ fun MainScreen(
     val positionMs by controller.positionMs.collectAsState()
     val durationMs by controller.durationMs.collectAsState()
     val isNowPlayingExpanded by viewModel.isNowPlayingExpanded.collectAsState()
+    val isCarDashboardOpen by viewModel.isCarDashboardOpen.collectAsState()
+    val isFullScreenSearchOpen by viewModel.isFullScreenSearchOpen.collectAsState()
     val isCodecInfoOpen by viewModel.isCodecInfoOpen.collectAsState()
     val isQueueSheetOpen by viewModel.isQueueSheetOpen.collectAsState()
     val isStreamUrlOpen by viewModel.isStreamUrlDialogOpen.collectAsState()
     val selectedPlaylistForAdd by viewModel.selectedPlaylistForAdd.collectAsState()
+    val isHeadsetControlsOpen by viewModel.isHeadsetControlsDialogOpen.collectAsState()
+    val importStatusMessage by viewModel.importStatusMessage.collectAsState()
+    val interruptionStatus by viewModel.interruptionStatus.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
 
     val currentSkin by viewModel.currentSkinPreset.collectAsState()
@@ -107,10 +117,16 @@ fun MainScreen(
 
     var isWidgetSettingsOpen by remember { mutableStateOf(false) }
 
-    // Intercept Back button if modal/sheet or widget settings is open
-    BackHandler(enabled = isNowPlayingExpanded || isWidgetSettingsOpen) {
-        if (isNowPlayingExpanded) {
+    // Intercept Back button if modal/sheet or dialog is open
+    BackHandler(enabled = isFullScreenSearchOpen || isNowPlayingExpanded || isCarDashboardOpen || isWidgetSettingsOpen || isHeadsetControlsOpen) {
+        if (isFullScreenSearchOpen) {
+            viewModel.setFullScreenSearchOpen(false)
+        } else if (isCarDashboardOpen) {
+            viewModel.setCarDashboardOpen(false)
+        } else if (isNowPlayingExpanded) {
             viewModel.setNowPlayingExpanded(false)
+        } else if (isHeadsetControlsOpen) {
+            viewModel.setHeadsetControlsDialogOpen(false)
         } else if (isWidgetSettingsOpen) {
             isWidgetSettingsOpen = false
         }
@@ -181,6 +197,34 @@ fun MainScreen(
             ) {
                 Scaffold(
                     containerColor = Color.Transparent,
+                    topBar = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                        ) {
+                            TopNavMiniPlayer(
+                                appName = appName,
+                                currentMedia = currentMedia,
+                                isPlaying = isPlaying,
+                                accentColor = accentColor,
+                                onExpandNowPlaying = { viewModel.setNowPlayingExpanded(true) },
+                                onTogglePlayPause = { controller.togglePlayPause() },
+                                onNext = { controller.playNext() },
+                                onOpenHeadsetControls = { viewModel.setHeadsetControlsDialogOpen(true) },
+                                onOpenFilePicker = {
+                                    filePickerLauncher.launch(arrayOf("audio/*", "video/*", "*/*"))
+                                },
+                                onOpenCarDashboard = { viewModel.setCarDashboardOpen(true) },
+                                onOpenSearch = { viewModel.setFullScreenSearchOpen(true) },
+                                statusMessage = importStatusMessage ?: interruptionStatus,
+                                onDismissStatusMessage = {
+                                    viewModel.clearImportStatusMessage()
+                                    viewModel.clearInterruptionStatus()
+                                }
+                            )
+                        }
+                    },
                     bottomBar = {
                         if (!isWideScreen) {
                             Column(
@@ -232,7 +276,6 @@ fun MainScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
-                            .statusBarsPadding()
                     ) {
                         when (selectedTab) {
                             0 -> ListenNowScreen(
@@ -311,6 +354,32 @@ fun MainScreen(
             )
         }
 
+        // Full Screen Car Dashboard Player
+        AnimatedVisibility(
+            visible = isCarDashboardOpen,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            CarDashboardScreen(
+                viewModel = viewModel,
+                onClose = { viewModel.setCarDashboardOpen(false) }
+            )
+        }
+
+        // Dedicated Full-Page Search Screen
+        AnimatedVisibility(
+            visible = isFullScreenSearchOpen,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            FullScreenSearchScreen(
+                viewModel = viewModel,
+                onDismiss = { viewModel.setFullScreenSearchOpen(false) }
+            )
+        }
+
         // Codec & Stream Info Dialog
         if (isCodecInfoOpen) {
             CodecInfoDialog(
@@ -349,6 +418,14 @@ fun MainScreen(
                 onSelectPlaylist = { plId ->
                     viewModel.addToPlaylist(plId, selectedPlaylistForAdd!!.id)
                 }
+            )
+        }
+
+        // Headset & Earphones Controls Hub Dialog
+        if (isHeadsetControlsOpen) {
+            HeadsetControlsDialog(
+                viewModel = viewModel,
+                onDismiss = { viewModel.setHeadsetControlsDialogOpen(false) }
             )
         }
     }

@@ -20,8 +20,8 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: PlayerViewModel by viewModels()
 
-    // Activity Result Launcher for Media and Storage Permissions
-    private val storagePermissionLauncher = registerForActivityResult(
+    // Activity Result Launcher for Media and Call Permissions
+    private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val isAudioGranted = permissions[Manifest.permission.READ_MEDIA_AUDIO] ?: false
@@ -38,8 +38,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Check and request media permissions on startup
-        requestMediaPermissions()
+        // Check and request media & phone state permissions on startup
+        requestPermissions()
 
         // Handle incoming audio or video intent or widget action
         handleIntent(intent)
@@ -57,30 +57,43 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Checks and requests READ_MEDIA_AUDIO & READ_MEDIA_VIDEO for Android 13+ (API 33+),
-     * or READ_EXTERNAL_STORAGE for Android 12 and below.
+     * Checks and requests media and phone state permissions for call auto-stop.
      */
-    fun requestMediaPermissions() {
-        val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(
-                Manifest.permission.READ_MEDIA_AUDIO,
-                Manifest.permission.READ_MEDIA_VIDEO
-            )
+    fun requestPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+            permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         } else {
-            arrayOf(
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            )
+            permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        permissionsToRequest.add(Manifest.permission.READ_PHONE_STATE)
+
+        val allMediaGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         }
 
-        val allGranted = permissionsToRequest.all { perm ->
-            ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED
+        if (allMediaGranted) {
+            viewModel.scanDeviceStorage(silent = true)
         }
 
-        if (allGranted) {
-            viewModel.scanDeviceStorage()
-        } else {
-            storagePermissionLauncher.launch(permissionsToRequest)
+        val ungranted = permissionsToRequest.filter { perm ->
+            ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED
         }
+
+        if (ungranted.isNotEmpty()) {
+            permissionLauncher.launch(ungranted.toTypedArray())
+        }
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (viewModel.headsetController.handleKeyEvent(event)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -93,6 +106,9 @@ class MainActivity : ComponentActivity() {
             }
             AudiPlayerWidgetProvider.ACTION_PREV -> {
                 viewModel.playerController.playPrevious()
+            }
+            "androidx.car.app.media.action.SHOW_MEDIA_PLAYBACK" -> {
+                viewModel.setNowPlayingExpanded(true)
             }
             else -> {
                 val uri = intent?.data

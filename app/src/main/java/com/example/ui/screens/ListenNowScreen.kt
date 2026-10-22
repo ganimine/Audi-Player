@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Movie
@@ -66,10 +67,13 @@ fun ListenNowScreen(
     val currentPlaying by controller.currentMedia.collectAsState()
     val isPlaying by controller.isPlaying.collectAsState()
     val accentTheme by viewModel.accentTheme.collectAsState()
-    val appName by viewModel.appName.collectAsState()
     val accentColor = Color(accentTheme.hexColor)
-
-    val heroItem = masterList.firstOrNull { it.isVideo } ?: masterList.firstOrNull()
+    val showVideoFiles by viewModel.showVideoFiles.collectAsState()
+    val heroItem = if (showVideoFiles) {
+        masterList.firstOrNull()
+    } else {
+        masterList.firstOrNull { !it.isVideo }
+    }
     val audioItems = masterList.filter { !it.isVideo }
     val videoItems = masterList.filter { it.isVideo }
 
@@ -80,7 +84,7 @@ fun ListenNowScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // App Header
+        // Section Header & Quick Actions (App branding is displayed in top navigation bar)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -89,12 +93,13 @@ fun ListenNowScreen(
             ) {
                 Column {
                     Text(
-                        text = appName,
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        text = "Listen Now",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
                     Text(
-                        text = "VLC Power • Apple Music Elegance",
+                        text = "AUDI Power • Apple Music Elegance",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF9CA3AF)
                     )
@@ -144,6 +149,34 @@ fun ListenNowScreen(
                                 contentDescription = "Stream URL",
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    // Car Mode Dashboard Button
+                    Surface(
+                        onClick = { viewModel.setCarDashboardOpen(true) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x33FF9800),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF9800)),
+                        modifier = Modifier.testTag("open_car_dashboard_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = "Car Player Dashboard",
+                                tint = Color(0xFFFF9800),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Car Mode",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
                         }
                     }
@@ -317,16 +350,17 @@ fun ListenNowScreen(
             }
         }
 
-        // 4K & HD Video Cinema Showcase
-        item {
-            Column {
-                Row(
+        // 4K & HD Video Cinema Showcase (User-controlled via Show Video Files setting)
+        if (showVideoFiles && videoItems.isNotEmpty()) {
+            item {
+                Column {
+                    Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "VLC Video Theater (H.264 / HEVC)",
+                        text = "AUDI Video Theater (H.264 / HEVC)",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color.White
                     )
@@ -427,5 +461,6 @@ fun ListenNowScreen(
                 }
             }
         }
+    }
     }
 }

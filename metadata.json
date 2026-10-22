@@ -1,6 +1,6 @@
 {
   "name": "AUDI Player",
-  "description": "Premium media player with advanced audio/video playback, customizable skins, equalizer, and playlist management.",
+  "description": "Premium media player by Ganimine with advanced audio/video playback, customizable skins, equalizer, and playlist management.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -7,24 +7,6 @@ object DemoMediaData {
 
     val SAMPLE_TRACKS = listOf(
         MediaItemData(
-            id = "demo_video_1",
-            title = "Big Buck Bunny (1080p 60fps)",
-            artist = "Blender Open Movie",
-            album = "Cinematic Showcase",
-            durationMs = 596000L,
-            uri = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-            isVideo = true,
-            fileSize = 158 * 1024 * 1024L, // 158 MB > 2.5MB
-            bitrate = "4,500 kbps",
-            resolution = "1920x1080 @ 60fps",
-            codec = "H.264 / AAC High Profile",
-            container = "MP4 / ISO Media",
-            sampleRate = "48 kHz",
-            channels = "5.1 Surround",
-            artworkUrl = "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800",
-            gradientColorIndex = 0
-        ),
-        MediaItemData(
             id = "demo_audio_1",
             title = "Cosmic Horizon (Lossless FLAC)",
             artist = "Aura Sound Lab",
@@ -41,24 +23,6 @@ object DemoMediaData {
             channels = "Stereo 2.0",
             artworkUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
             gradientColorIndex = 1
-        ),
-        MediaItemData(
-            id = "demo_video_2",
-            title = "Tears of Steel (VFX Remaster)",
-            artist = "Ian Hubert & Blender",
-            album = "Sci-Fi Cinema Collection",
-            durationMs = 734000L,
-            uri = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-            isVideo = true,
-            fileSize = 240 * 1024 * 1024L, // 240 MB > 2.5MB
-            bitrate = "8,200 kbps (High Tier)",
-            resolution = "3840x2160 UHD",
-            codec = "H.265 / HEVC Main 10",
-            container = "Matroska MKV / MP4",
-            sampleRate = "48 kHz",
-            channels = "7.1 Atmos Ready",
-            artworkUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800",
-            gradientColorIndex = 2
         ),
         MediaItemData(
             id = "demo_audio_2",
@@ -97,24 +61,6 @@ object DemoMediaData {
             gradientColorIndex = 4
         ),
         MediaItemData(
-            id = "demo_video_3",
-            title = "For Bigger Blazes (HDR Demo)",
-            artist = "Google Media Labs",
-            album = "Ultra Performance Demo",
-            durationMs = 15000L,
-            uri = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-            isVideo = true,
-            fileSize = 48 * 1024 * 1024L, // 48 MB > 2.5MB
-            bitrate = "6,400 kbps",
-            resolution = "1920x1080 HDR",
-            codec = "VP9 / Opus WebM",
-            container = "WebM / MP4",
-            sampleRate = "48 kHz",
-            channels = "Stereo 2.0",
-            artworkUrl = "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800",
-            gradientColorIndex = 5
-        ),
-        MediaItemData(
             id = "demo_audio_4",
             title = "Beethoven: Moonlight Sonata",
             artist = "Vienna Philharmonic Orchestra",
@@ -131,6 +77,96 @@ object DemoMediaData {
             channels = "Stereo 2.0",
             artworkUrl = "https://images.unsplash.com/photo-1520523839898-50712825e3a7?w=800",
             gradientColorIndex = 0
+        ),
+        MediaItemData(
+            id = "demo_audio_5",
+            title = "Golden Hour Acoustic (4.5 MB)",
+            artist = "Aura Acoustic Ensemble",
+            album = "Sunset Serenade Sessions",
+            durationMs = 188000L,
+            uri = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+            isVideo = false,
+            fileSize = 4_718_592L, // 4.5 MB (4 to 5 MB range)
+            bitrate = "320 kbps VBR",
+            resolution = null,
+            codec = "MPEG Audio Layer 3 (MP3)",
+            container = "MP3",
+            sampleRate = "44.1 kHz",
+            channels = "Stereo 2.0",
+            artworkUrl = "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800",
+            gradientColorIndex = 1
+        ),
+        MediaItemData(
+            id = "demo_audio_6",
+            title = "Prism Waves Studio Master (4.2 MB)",
+            artist = "Neon Skyline",
+            album = "Analog Horizons",
+            durationMs = 175000L,
+            uri = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+            isVideo = false,
+            fileSize = 4_404_019L, // 4.2 MB (4 to 5 MB range)
+            bitrate = "256 kbps AAC",
+            resolution = null,
+            codec = "AAC / Apple M4A",
+            container = "M4A",
+            sampleRate = "48 kHz",
+            channels = "Stereo 2.0",
+            artworkUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800",
+            gradientColorIndex = 3
+        ),
+        MediaItemData(
+            id = "demo_video_1",
+            title = "Big Buck Bunny (720p HD)",
+            artist = "Blender Open Movie",
+            album = "Cinematic Showcase",
+            durationMs = 596000L,
+            uri = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4",
+            isVideo = true,
+            fileSize = 4_999_379L, // ~4.99 MB (in 4MB-5MB range)
+            bitrate = "4,500 kbps",
+            resolution = "1280x720 HD",
+            codec = "H.264 / AAC High Profile",
+            container = "MP4 / ISO Media",
+            sampleRate = "48 kHz",
+            channels = "5.1 Surround",
+            artworkUrl = "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=800",
+            gradientColorIndex = 0
+        ),
+        MediaItemData(
+            id = "demo_video_2",
+            title = "Jellyfish Deep Ocean (720p HD)",
+            artist = "Aura Cinematic Labs",
+            album = "Sci-Fi Cinema Collection",
+            durationMs = 734000L,
+            uri = "https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_5MB.mp4",
+            isVideo = true,
+            fileSize = 5_241_877L,
+            bitrate = "8,200 kbps (High Tier)",
+            resolution = "1280x720 HD",
+            codec = "H.264 / AAC High Profile",
+            container = "MP4 / ISO Media",
+            sampleRate = "48 kHz",
+            channels = "7.1 Atmos Ready",
+            artworkUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800",
+            gradientColorIndex = 2
+        ),
+        MediaItemData(
+            id = "demo_video_3",
+            title = "Sintel Open Fantasy (720p HD)",
+            artist = "Blender Animation Studio",
+            album = "Ultra Performance Demo",
+            durationMs = 52000L,
+            uri = "https://test-videos.co.uk/vids/sintel/mp4/h264/720/Sintel_720_10s_5MB.mp4",
+            isVideo = true,
+            fileSize = 5_242_780L,
+            bitrate = "6,400 kbps",
+            resolution = "1280x720 HD",
+            codec = "H.264 / AAC WebM/MP4",
+            container = "MP4 Container",
+            sampleRate = "48 kHz",
+            channels = "Stereo 2.0",
+            artworkUrl = "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800",
+            gradientColorIndex = 5
         )
     )
 
@@ -138,15 +174,15 @@ object DemoMediaData {
         Playlist(
             id = "playlist_favorites",
             name = "Favorites & Lossless",
-            description = "High resolution audio masters & top 4K videos",
-            mediaIds = listOf("demo_video_1", "demo_audio_1", "demo_video_2", "demo_audio_4"),
+            description = "High resolution audio masters & spatial audio tracks",
+            mediaIds = listOf("demo_audio_1", "demo_audio_2", "demo_audio_4", "demo_audio_6"),
             coverGradientIndex = 1
         ),
         Playlist(
-            id = "playlist_vlc_theater",
-            name = "VLC Cinema & Clips",
-            description = "High bitrate full HD & 4K video playback",
-            mediaIds = listOf("demo_video_1", "demo_video_2", "demo_video_3"),
+            id = "playlist_audi_theater",
+            name = "AUDI Acoustic & Lossless",
+            description = "Studio acoustic recordings and orchestral masterpieces",
+            mediaIds = listOf("demo_audio_1", "demo_audio_4", "demo_audio_5"),
             coverGradientIndex = 2
         ),
         Playlist(

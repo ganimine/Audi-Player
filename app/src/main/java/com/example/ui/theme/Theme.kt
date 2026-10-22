@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
     primary = AudiCrimson,
-    secondary = VlcOrange,
+    secondary = AudiOrange,
     tertiary = CyberCyan,
     background = DarkBackground,
     surface = DarkSurface,

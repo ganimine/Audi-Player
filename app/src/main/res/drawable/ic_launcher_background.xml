@@ -14,23 +14,23 @@
                 android:endX="96"
                 android:endY="96"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#1A0C2E" />
-                <item android:offset="0.5" android:color="#0F172A" />
-                <item android:offset="1.0" android:color="#0B0F19" />
+                <item android:offset="0.0" android:color="#141926" />
+                <item android:offset="0.5" android:color="#0F1420" />
+                <item android:offset="1.0" android:color="#0A0D15" />
             </gradient>
         </aapt:attr>
     </path>
     <!-- Subtle radial glow behind the emblem -->
     <path
-        android:pathData="M54,54m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0">
+        android:pathData="M54,54m-44,0a44,44 0,1 1,88 0a44,44 0,1 1,-88 0">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:centerX="54"
                 android:centerY="54"
-                android:gradientRadius="42"
+                android:gradientRadius="44"
                 android:type="radial">
-                <item android:offset="0.0" android:color="#33FF2E7E" />
-                <item android:offset="0.6" android:color="#15FF6A00" />
+                <item android:offset="0.0" android:color="#264285F4" />
+                <item android:offset="0.6" android:color="#1234A853" />
                 <item android:offset="1.0" android:color="#00000000" />
             </gradient>
         </aapt:attr>

@@ -93,10 +93,15 @@ fun LibraryScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val activeFilter by viewModel.activeFilter.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
+    val strict4to5MbFilter by viewModel.strict4to5MbFilter.collectAsState()
     val accentTheme by viewModel.accentTheme.collectAsState()
     val accentColor = Color(accentTheme.hexColor)
-
-    val filters = listOf("All", "Audio", "Video", "Albums", "Large Files (>2.5MB)")
+    val showVideoFiles by viewModel.showVideoFiles.collectAsState()
+    val filters = if (showVideoFiles) {
+        listOf("All", "4MB - 5MB Only", "Audio", "Video", "Albums", "Large Files (>2.5MB)")
+    } else {
+        listOf("All", "4MB - 5MB Only", "Audio", "Albums", "Large Files (>2.5MB)")
+    }
 
     // Storage Permissions
     val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -190,35 +195,52 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Search Input
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { viewModel.setSearchQuery(it) },
-            placeholder = { Text("Search songs, albums, artists, codecs...", color = Color(0xFF6B7280), fontSize = 14.sp) },
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF9CA3AF))
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color(0xFF9CA3AF))
-                    }
-                }
-            },
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = accentColor,
-                unfocusedBorderColor = Color(0x33FFFFFF),
-                focusedContainerColor = Color(0x1AFFFFFF),
-                unfocusedContainerColor = Color(0x12FFFFFF),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+        // Search Input (Tapping opens dedicated Full-Screen Search Interface)
+        Surface(
+            onClick = { viewModel.setFullScreenSearchOpen(true) },
             shape = RoundedCornerShape(14.dp),
+            color = Color(0x18FFFFFF),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFFFFF)),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("library_search_input")
-        )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = accentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = if (searchQuery.isNotEmpty()) searchQuery else "Search songs, albums, artists, genres...",
+                    color = if (searchQuery.isNotEmpty()) Color.White else Color(0xFF6B7280),
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(
+                        onClick = { viewModel.setSearchQuery("") },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Clear,
+                            contentDescription = "Clear",
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -249,7 +271,43 @@ fun LibraryScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 4MB-5MB & Call Recording Policy Note
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0x18FFFFFF))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AuraBadge(
+                    text = if (strict4to5MbFilter) "4MB–5MB Strict" else "All Sizes",
+                    color = accentColor
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Call recordings excluded",
+                    fontSize = 11.sp,
+                    color = Color(0xFFD1D5DB)
+                )
+            }
+
+            Text(
+                text = if (strict4to5MbFilter) "Tap to change" else "Filtered",
+                fontSize = 10.sp,
+                color = accentColor,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable {
+                    viewModel.setStrict4to5MbFilter(!strict4to5MbFilter)
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Content Area: Either Albums Grid or Tracks List
         if (activeFilter == "Albums") {

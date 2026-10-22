@@ -265,7 +265,7 @@ fun AppleMiniPlayer(
 }
 
 /**
- * Apple Music / VLC Style Tag Badge
+ * Apple Music / AUDI Style Tag Badge
  */
 @Composable
 fun AuraBadge(
@@ -318,7 +318,7 @@ fun AuraGlassCard(
 }
 
 /**
- * Dynamic Audio Visualizer View (Liquid Wave, VLC Spectrum, Vinyl Disc)
+ * Dynamic Audio Visualizer View (Liquid Wave, AUDI Spectrum, Vinyl Disc)
  */
 @Composable
 fun AnimatedVisualizerView(

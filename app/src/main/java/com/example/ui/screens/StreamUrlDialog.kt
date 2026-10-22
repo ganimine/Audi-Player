@@ -28,7 +28,7 @@ fun StreamUrlDialog(
     onDismiss: () -> Unit,
     onPlayUrl: (url: String, title: String) -> Unit
 ) {
-    var urlText by remember { mutableStateOf("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4") }
+    var urlText by remember { mutableStateOf("https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4") }
     var streamTitle by remember { mutableStateOf("Web Stream") }
 
     AlertDialog(

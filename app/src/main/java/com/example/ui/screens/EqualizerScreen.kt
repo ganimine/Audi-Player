@@ -91,7 +91,7 @@ fun EqualizerScreen(
             Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text(
-                    text = "VLC Audio Equalizer",
+                    text = "AUDI Audio Equalizer",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
@@ -294,7 +294,7 @@ fun EqualizerScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // VLC A-B Repeat Loop Controller
+        // AUDI A-B Repeat Loop Controller
         AuraGlassCard(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 18.dp
@@ -303,7 +303,7 @@ fun EqualizerScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Loop, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("VLC A-B Repeat Loop", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                    Text("AUDI A-B Repeat Loop", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(

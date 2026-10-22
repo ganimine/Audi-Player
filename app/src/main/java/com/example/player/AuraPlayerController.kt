@@ -39,7 +39,43 @@ class AuraPlayerController(private val context: Context) {
         setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
     }
 
-    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context, renderersFactory).build()
+    private val exoAudioAttributes = androidx.media3.common.AudioAttributes.Builder()
+        .setUsage(C.USAGE_MEDIA)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+        .build()
+
+    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context, renderersFactory)
+        .setAudioAttributes(exoAudioAttributes, false) // Explicitly managed via AudioInterruptionManager to avoid focus collisions
+        .setHandleAudioBecomingNoisy(false) // Handled via AudioInterruptionManager receiver
+        .build()
+
+    // Smooth Volume Transition & Ducking
+    private var volumeFadeJob: Job? = null
+    private val _currentVolume = MutableStateFlow(1.0f)
+    val currentVolume: StateFlow<Float> = _currentVolume.asStateFlow()
+
+    // Intelligent Audio Interruption & Call/Notification Manager
+    val interruptionManager = AudioInterruptionManager(
+        context = context,
+        onAutoStop = {
+            val wasPlaying = exoPlayer.playWhenReady
+            exoPlayer.pause()
+            wasPlaying
+        },
+        onResume = {
+            exoPlayer.play()
+        },
+        onDuck = { duckFactor ->
+            duckVolume(duckFactor)
+        },
+        onRaise = {
+            raiseVolume(1.0f)
+        },
+        isPlaying = { exoPlayer.playWhenReady && exoPlayer.playbackState != Player.STATE_ENDED }
+    )
+
+    // Vehicle Motion & Driving Mode Restriction Manager
+    val drivingModeManager: com.example.driving.DrivingModeManager = com.example.driving.DrivingModeManager(context)
 
     // Player State Flows
     private val _currentMedia = MutableStateFlow<MediaItemData?>(null)
@@ -71,6 +107,22 @@ class AuraPlayerController(private val context: Context) {
 
     private val _isAudioOnlyForVideo = MutableStateFlow(false)
     val isAudioOnlyForVideo: StateFlow<Boolean> = _isAudioOnlyForVideo.asStateFlow()
+
+    // Driving Safety State for Android Auto and Car Mode
+    private val _drivingWarning = MutableStateFlow<String?>(null)
+    val drivingWarning: StateFlow<String?> = _drivingWarning.asStateFlow()
+
+    fun setDrivingWarning(message: String?) {
+        _drivingWarning.value = message
+    }
+
+    fun clearDrivingWarning() {
+        _drivingWarning.value = null
+    }
+
+    fun setAudioOnlyForVideo(enabled: Boolean) {
+        _isAudioOnlyForVideo.value = enabled
+    }
 
     // A-B Loop
     private val _aLoopMs = MutableStateFlow<Long?>(null)
@@ -108,17 +160,49 @@ class AuraPlayerController(private val context: Context) {
     private val _visualizerAmplitudes = MutableStateFlow(List(32) { 0.2f })
     val visualizerAmplitudes: StateFlow<List<Float>> = _visualizerAmplitudes.asStateFlow()
 
-    // Queue
+    // Queue and Library Tracks
     private val _queue = MutableStateFlow<List<MediaItemData>>(emptyList())
     val queue: StateFlow<List<MediaItemData>> = _queue.asStateFlow()
+
+    private val _libraryTracks = MutableStateFlow<List<MediaItemData>>(com.example.data.DemoMediaData.SAMPLE_TRACKS.filter { !it.isVideo })
+    val libraryTracks: StateFlow<List<MediaItemData>> = _libraryTracks.asStateFlow()
+
+    fun setLibraryTracks(tracks: List<MediaItemData>) {
+        _libraryTracks.value = tracks
+        if (_queue.value.isEmpty()) {
+            _queue.value = tracks
+        }
+    }
+
+    fun addToQueue(media: MediaItemData) {
+        val current = _queue.value.toMutableList()
+        if (current.none { it.id == media.id }) {
+            current.add(media)
+            _queue.value = current
+            exoPlayer.addMediaItem(media.toMedia3MediaItem())
+        }
+    }
 
     private var progressTrackingJob: Job? = null
     private var visualizerJob: Job? = null
 
     init {
+        activeInstance = this
+        drivingModeManager.onMotionStateChanged = { isMoving ->
+            if (isMoving && drivingModeManager.isDrivingRestrictionEnabled.value && _currentMedia.value?.isVideo == true) {
+                // Vehicle started moving while video was active: force audio-only streaming
+                _isAudioOnlyForVideo.value = true
+                setDrivingWarning(
+                    "Vehicle in motion (${drivingModeManager.currentSpeedKmh.value.toInt()} km/h): Video display prohibited for safety. Audio streaming will continue."
+                )
+            }
+        }
         setupPlayerListener()
         startTrackingProgress()
         startVisualizerEngine()
+        try {
+            com.example.driving.DrivingRestrictionService.startService(context)
+        } catch (_: Exception) {}
     }
 
     private fun setupPlayerListener() {
@@ -126,8 +210,39 @@ class AuraPlayerController(private val context: Context) {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
                 if (playing) {
+                    interruptionManager.startCallMonitoring()
                     initAudioEffects()
+                } else {
+                    interruptionManager.stopCallMonitoring()
                 }
+            }
+
+            override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+                if (playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_TRANSIENT_AUDIO_FOCUS_LOSS) {
+                    interruptionManager.checkCallAndAudioInterruption()
+                }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (mediaItem != null) {
+                    val matching = _queue.value.firstOrNull { it.id == mediaItem.mediaId }
+                        ?: com.example.data.DemoMediaData.SAMPLE_TRACKS.firstOrNull { it.id == mediaItem.mediaId }
+                    if (matching != null && _currentMedia.value?.id != matching.id) {
+                        _currentMedia.value = matching
+                    }
+                }
+            }
+
+            override fun onRepeatModeChanged(repeatModeInt: Int) {
+                _repeatMode.value = when (repeatModeInt) {
+                    Player.REPEAT_MODE_ONE -> RepeatMode.ONE
+                    Player.REPEAT_MODE_ALL -> RepeatMode.ALL
+                    else -> RepeatMode.OFF
+                }
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                _isShuffle.value = shuffleModeEnabled
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -137,10 +252,16 @@ class AuraPlayerController(private val context: Context) {
                         initAudioEffects()
                     }
                     Player.STATE_ENDED -> {
+                        interruptionManager.stopCallMonitoring()
                         handlePlaybackEnded()
                     }
                     else -> {}
                 }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("AuraPlayerController", "PlaybackException occurred: ${error.message}", error)
+                _isPlaying.value = false
             }
         })
     }
@@ -204,22 +325,65 @@ class AuraPlayerController(private val context: Context) {
         }
     }
 
-    fun playMedia(media: MediaItemData, newQueue: List<MediaItemData>? = null) {
-        if (newQueue != null) {
-            _queue.value = newQueue
+    fun setInitialQueue(initialQueue: List<MediaItemData>) {
+        if (initialQueue.isNotEmpty()) {
+            _queue.value = initialQueue
+            if (_libraryTracks.value.isEmpty()) {
+                _libraryTracks.value = initialQueue
+            }
+            // Always pick an audio track as the default initial item (never auto-pick a video)
+            val initialItem = _currentMedia.value ?: initialQueue.firstOrNull { !it.isVideo } ?: initialQueue.first()
+            _currentMedia.value = initialItem
+            if (exoPlayer.mediaItemCount == 0) {
+                val media3Items = initialQueue.map { it.toMedia3MediaItem() }
+                val targetIndex = initialQueue.indexOfFirst { it.id == initialItem.id }.coerceAtLeast(0)
+                exoPlayer.setMediaItems(media3Items, targetIndex, 0L)
+                exoPlayer.prepare()
+            }
         }
+    }
+
+    fun playMedia(media: MediaItemData, newQueue: List<MediaItemData>? = null) {
+        val q = if (!newQueue.isNullOrEmpty()) newQueue else if (_queue.value.isNotEmpty()) _queue.value else listOf(media)
+        _queue.value = q
         _currentMedia.value = media
-        val mediaItem = MediaItem.fromUri(Uri.parse(media.uri))
-        exoPlayer.setMediaItem(mediaItem)
+
+        // If media is video and vehicle is in motion: enforce audio-only playback and trigger safety warning
+        if (media.isVideo && drivingModeManager.isVehicleMoving.value && drivingModeManager.isDrivingRestrictionEnabled.value) {
+            _isAudioOnlyForVideo.value = true
+            setDrivingWarning(
+                "Vehicle in motion (${drivingModeManager.currentSpeedKmh.value.toInt()} km/h): Video playback is restricted for safety. Audio streaming will continue."
+            )
+            drivingModeManager.notifyProhibitedVideoInteraction(
+                "⚠️ Vehicle in motion (${drivingModeManager.currentSpeedKmh.value.toInt()} km/h): Video playback restricted. Audio streaming active."
+            )
+        }
+
+        val targetIndex = q.indexOfFirst { it.id == media.id }.let { if (it >= 0) it else 0 }
+        val media3Items = q.map { it.toMedia3MediaItem() }
+
+        // Load the full queue into ExoPlayer so hasNextMediaItem / hasPreviousMediaItem are active
+        exoPlayer.setMediaItems(media3Items, targetIndex, 0L)
         exoPlayer.prepare()
+
+        // Acquire audio focus via interruption manager before starting playback
+        interruptionManager.requestAudioFocus()
         exoPlayer.play()
+
+        try {
+            com.example.service.AudiMediaPlaybackService.startService(context)
+        } catch (_: Exception) {}
     }
 
     fun togglePlayPause() {
         if (exoPlayer.isPlaying) {
             exoPlayer.pause()
         } else {
+            interruptionManager.requestAudioFocus()
             exoPlayer.play()
+            try {
+                com.example.service.AudiMediaPlaybackService.startService(context)
+            } catch (_: Exception) {}
         }
     }
 
@@ -234,17 +398,22 @@ class AuraPlayerController(private val context: Context) {
     }
 
     fun playNext() {
-        val q = _queue.value
-        if (q.isEmpty()) return
-        val current = _currentMedia.value
-        val currentIndex = q.indexOfFirst { it.id == current?.id }
-
-        val nextIndex = if (_isShuffle.value) {
-            (q.indices - currentIndex.coerceAtLeast(0)).randomOrNull() ?: 0
+        if (exoPlayer.hasNextMediaItem()) {
+            exoPlayer.seekToNextMediaItem()
+            exoPlayer.play()
         } else {
-            (currentIndex + 1) % q.size
+            val q = _queue.value
+            if (q.isNotEmpty()) {
+                val current = _currentMedia.value
+                val currentIndex = q.indexOfFirst { it.id == current?.id }
+                val nextIndex = if (_isShuffle.value) {
+                    (q.indices - currentIndex.coerceAtLeast(0)).randomOrNull() ?: 0
+                } else {
+                    (currentIndex + 1) % q.size
+                }
+                playMedia(q[nextIndex], q)
+            }
         }
-        playMedia(q[nextIndex])
     }
 
     fun playPrevious() {
@@ -252,12 +421,18 @@ class AuraPlayerController(private val context: Context) {
             seekTo(0L)
             return
         }
-        val q = _queue.value
-        if (q.isEmpty()) return
-        val current = _currentMedia.value
-        val currentIndex = q.indexOfFirst { it.id == current?.id }
-        val prevIndex = if (currentIndex > 0) currentIndex - 1 else q.size - 1
-        playMedia(q[prevIndex])
+        if (exoPlayer.hasPreviousMediaItem()) {
+            exoPlayer.seekToPreviousMediaItem()
+            exoPlayer.play()
+        } else {
+            val q = _queue.value
+            if (q.isNotEmpty()) {
+                val current = _currentMedia.value
+                val currentIndex = q.indexOfFirst { it.id == current?.id }
+                val prevIndex = if (currentIndex > 0) currentIndex - 1 else q.size - 1
+                playMedia(q[prevIndex], q)
+            }
+        }
     }
 
     fun setSpeed(speed: Float) {
@@ -282,6 +457,12 @@ class AuraPlayerController(private val context: Context) {
     }
 
     fun toggleAudioOnlyForVideo() {
+        if (_isAudioOnlyForVideo.value && drivingModeManager.isVehicleMoving.value && drivingModeManager.isDrivingRestrictionEnabled.value) {
+            drivingModeManager.notifyProhibitedVideoInteraction(
+                "⚠️ Vehicle in motion: Video display prohibited for safety. Audio streaming will continue."
+            )
+            return
+        }
         _isAudioOnlyForVideo.value = !_isAudioOnlyForVideo.value
     }
 
@@ -451,7 +632,45 @@ class AuraPlayerController(private val context: Context) {
         }
     }
 
+    fun duckVolume(targetLevel: Float = 0.20f) {
+        volumeFadeJob?.cancel()
+        volumeFadeJob = scope.launch {
+            val startVol = exoPlayer.volume
+            val steps = 15
+            for (i in 1..steps) {
+                val v = startVol + (targetLevel - startVol) * (i / steps.toFloat())
+                exoPlayer.volume = v
+                _currentVolume.value = v
+                delay(12L) // ~180ms smooth duck down
+            }
+            exoPlayer.volume = targetLevel
+            _currentVolume.value = targetLevel
+        }
+    }
+
+    fun raiseVolume(targetLevel: Float = 1.0f) {
+        volumeFadeJob?.cancel()
+        volumeFadeJob = scope.launch {
+            val startVol = exoPlayer.volume
+            val steps = 20
+            for (i in 1..steps) {
+                val v = startVol + (targetLevel - startVol) * (i / steps.toFloat())
+                exoPlayer.volume = v
+                _currentVolume.value = v
+                delay(12L) // ~240ms smooth raise up
+            }
+            exoPlayer.volume = targetLevel
+            _currentVolume.value = targetLevel
+        }
+    }
+
     fun release() {
+        volumeFadeJob?.cancel()
+        interruptionManager.release()
+        drivingModeManager.release()
+        try {
+            com.example.driving.DrivingRestrictionService.stopService(context)
+        } catch (_: Exception) {}
         progressTrackingJob?.cancel()
         visualizerJob?.cancel()
         sleepTimerJob?.cancel()
@@ -459,5 +678,22 @@ class AuraPlayerController(private val context: Context) {
         androidBassBoost?.release()
         androidVirtualizer?.release()
         exoPlayer.release()
+        if (activeInstance == this) {
+            activeInstance = null
+        }
+    }
+
+    companion object {
+        @Volatile
+        var activeInstance: AuraPlayerController? = null
+            private set
+
+        fun getOrCreate(context: Context): AuraPlayerController {
+            return activeInstance ?: synchronized(this) {
+                activeInstance ?: AuraPlayerController(context.applicationContext).also {
+                    activeInstance = it
+                }
+            }
+        }
     }
 }

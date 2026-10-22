@@ -18,12 +18,35 @@ import java.util.UUID
 
 object MediaScanner {
 
+    private val CALL_RECORDING_KEYWORDS = listOf(
+        "call", "recording", "call_rec", "recorder", "callrec",
+        "phone_call", "voice_rec", "voicerecord", "sound_recorder",
+        "callrecordings", "call_recording", "audio_record", "call_history",
+        "call@", "sound recorder", "voice memo"
+    )
+
+    fun isCallRecording(displayName: String, path: String? = null, album: String? = null): Boolean {
+        val text = "${displayName.lowercase()} ${path?.lowercase().orEmpty()} ${album?.lowercase().orEmpty()}"
+        return CALL_RECORDING_KEYWORDS.any { text.contains(it) }
+    }
+
+    fun isTarget4to5Mb(sizeBytes: Long): Boolean {
+        val minBytes = 4L * 1024 * 1024       // 4.0 MB
+        val maxBytes = 5L * 1024 * 1024 + (512 * 1024) // up to ~5.5 MB
+        return sizeBytes in minBytes..maxBytes
+    }
+
     /**
      * Resolves rich metadata, album name, embedded album art, codecs, and container info
      * for any selected Uri from Storage Access Framework or external file pickers.
-     * Fully handles files above 2.5MB and extracts ID3 tags and album cover art!
+     * Enforces the requirement: only imports 4MB-5MB files, and strictly excludes call recordings.
      */
-    suspend fun resolveMediaFromUri(context: Context, uri: Uri): MediaItemData = withContext(Dispatchers.IO) {
+    suspend fun resolveMediaFromUri(
+        context: Context,
+        uri: Uri,
+        strict4to5Mb: Boolean = true,
+        excludeCallRecordings: Boolean = true
+    ): MediaItemData = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         var displayName = "Imported Media"
         var sizeBytes = 0L
@@ -127,6 +150,17 @@ object MediaScanner {
             retriever.release()
         } catch (_: Exception) {}
 
+        // Enforce: Exclude Call Recordings
+        if (excludeCallRecordings && (isCallRecording(displayName, uri.path, album) || isCallRecording(artist, null, genre))) {
+            throw IllegalArgumentException("Call recordings are strictly excluded from AUDI Player.")
+        }
+
+        // Enforce: Only import 4MB to 5MB sized files
+        if (strict4to5Mb && sizeBytes > 0 && !isTarget4to5Mb(sizeBytes)) {
+            val mb = sizeBytes / (1024.0 * 1024.0)
+            throw IllegalArgumentException("Only 4MB to 5MB sized files can be imported (Selected: ${String.format("%.1f", mb)} MB).")
+        }
+
         val container = displayName.substringAfterLast('.', if (isVideo) "MP4" else "AUDIO").uppercase()
 
         MediaItemData(
@@ -154,8 +188,14 @@ object MediaScanner {
     /**
      * Query device MediaStore for local music and video library files,
      * resolving album name, artist, year, and album artwork Uris.
+     * Enforces the 4MB-5MB file filter and excludes call recordings.
      */
-    suspend fun queryDeviceMedia(context: Context): List<MediaItemData> = withContext(Dispatchers.IO) {
+    suspend fun queryDeviceMedia(
+        context: Context,
+        strict4to5Mb: Boolean = true,
+        excludeCallRecordings: Boolean = true,
+        includeVideos: Boolean = false
+    ): List<MediaItemData> = withContext(Dispatchers.IO) {
         val list = mutableListOf<MediaItemData>()
         val contentResolver = context.contentResolver
 
@@ -201,6 +241,16 @@ object MediaScanner {
                     val year = if (yearCol != -1) cursor.getString(yearCol) else null
                     val contentUri = Uri.withAppendedPath(audioUri, id.toString())
 
+                    // Exclude call recordings strictly
+                    if (excludeCallRecordings && (isCallRecording(title, null, album) || isCallRecording(artist, null, null))) {
+                        continue
+                    }
+
+                    // Enforce 4MB-5MB size filter if enabled
+                    if (strict4to5Mb && size > 0 && !isTarget4to5Mb(size)) {
+                        continue
+                    }
+
                     // Construct official MediaStore Album Art Uri
                     val albumArtUri = if (albumId > 0) {
                         ContentUris.withAppendedId(albumArtBaseUri, albumId).toString()
@@ -229,59 +279,71 @@ object MediaScanner {
             }
         } catch (_: Exception) {}
 
-        // 2. Video query
-        val videoUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } else {
-            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-        }
-
-        val videoProjection = arrayOf(
-            MediaStore.Video.Media._ID,
-            MediaStore.Video.Media.TITLE,
-            MediaStore.Video.Media.DURATION,
-            MediaStore.Video.Media.SIZE,
-            MediaStore.Video.Media.RESOLUTION
-        )
-
-        try {
-            contentResolver.query(videoUri, videoProjection, null, null, "${MediaStore.Video.Media.TITLE} ASC")?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.TITLE)
-                val durCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
-                val resCol = cursor.getColumnIndex(MediaStore.Video.Media.RESOLUTION)
-
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idCol)
-                    val title = cursor.getString(titleCol) ?: "Video $id"
-                    val duration = cursor.getLong(durCol)
-                    val size = cursor.getLong(sizeCol)
-                    val res = if (resCol != -1) cursor.getString(resCol) else "1080p"
-                    val contentUri = Uri.withAppendedPath(videoUri, id.toString())
-
-                    list.add(
-                        MediaItemData(
-                            id = "local_video_$id",
-                            title = title,
-                            artist = "Local Video",
-                            album = "Device Storage",
-                            durationMs = duration,
-                            uri = contentUri.toString(),
-                            isVideo = true,
-                            fileSize = size,
-                            bitrate = "4,200 kbps",
-                            resolution = res ?: "1080p",
-                            codec = "H.264 / AVC",
-                            container = "MP4",
-                            genre = "Video",
-                            artworkUrl = null,
-                            gradientColorIndex = ((id % 6).toInt() + 6) % 6
-                        )
-                    )
-                }
+        // 2. Video query (User-controlled: only scanned when includeVideos is enabled)
+        if (includeVideos) {
+            val videoUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            } else {
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
             }
-        } catch (_: Exception) {}
+
+            val videoProjection = arrayOf(
+                MediaStore.Video.Media._ID,
+                MediaStore.Video.Media.TITLE,
+                MediaStore.Video.Media.DURATION,
+                MediaStore.Video.Media.SIZE,
+                MediaStore.Video.Media.RESOLUTION
+            )
+
+            try {
+                contentResolver.query(videoUri, videoProjection, null, null, "${MediaStore.Video.Media.TITLE} ASC")?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                    val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.TITLE)
+                    val durCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
+                    val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
+                    val resCol = cursor.getColumnIndex(MediaStore.Video.Media.RESOLUTION)
+
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idCol)
+                        val title = cursor.getString(titleCol) ?: "Video $id"
+                        val duration = cursor.getLong(durCol)
+                        val size = cursor.getLong(sizeCol)
+                        val res = if (resCol != -1) cursor.getString(resCol) else "1080p"
+                        val contentUri = Uri.withAppendedPath(videoUri, id.toString())
+
+                        // Exclude call recordings/voice notes
+                        if (excludeCallRecordings && isCallRecording(title, null, null)) {
+                            continue
+                        }
+
+                        // Enforce 4MB-5MB size filter if enabled
+                        if (strict4to5Mb && size > 0 && !isTarget4to5Mb(size)) {
+                            continue
+                        }
+
+                        list.add(
+                            MediaItemData(
+                                id = "local_video_$id",
+                                title = title,
+                                artist = "Local Video",
+                                album = "Device Storage",
+                                durationMs = duration,
+                                uri = contentUri.toString(),
+                                isVideo = true,
+                                fileSize = size,
+                                bitrate = "4,200 kbps",
+                                resolution = res ?: "1080p",
+                                codec = "H.264 / AVC",
+                                container = "MP4",
+                                genre = "Video",
+                                artworkUrl = null,
+                                gradientColorIndex = ((id % 6).toInt() + 6) % 6
+                            )
+                        )
+                    }
+                }
+            } catch (_: Exception) {}
+        }
 
         list
     }

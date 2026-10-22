@@ -23,11 +23,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Movie
@@ -42,6 +44,11 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeMute
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -101,7 +108,12 @@ fun NowPlayingScreen(
     val sleepTimerSec by controller.sleepTimerSeconds.collectAsState()
     val isAbLoopActive by controller.isAbLoopActive.collectAsState()
     val isAudioOnlyForVideo by controller.isAudioOnlyForVideo.collectAsState()
+    val drivingWarning by controller.drivingWarning.collectAsState()
     val aspectRatioMode by controller.aspectRatioMode.collectAsState()
+    val isDucked by viewModel.isDucked.collectAsState()
+    val interruptionStatus by viewModel.interruptionStatus.collectAsState()
+    val streamVolume by viewModel.streamVolume.collectAsState()
+    val maxStreamVolume = viewModel.maxStreamVolume
 
     var showSpeedMenu by remember { mutableStateOf(false) }
     var showSleepMenu by remember { mutableStateOf(false) }
@@ -190,16 +202,94 @@ fun NowPlayingScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = { viewModel.setCodecInfoOpen(true) },
-                        modifier = Modifier.size(40.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { viewModel.setHeadsetControlsDialogOpen(true) },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Headphones,
+                                contentDescription = "Headset Controls",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.setCodecInfoOpen(true) },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Codec Details",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        // Car Dashboard Mode Button
+                        IconButton(
+                            onClick = {
+                                viewModel.setNowPlayingExpanded(false)
+                                viewModel.setCarDashboardOpen(true)
+                            },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = "Car Player Dashboard",
+                                tint = Color(0xFFFF9800),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (drivingWarning != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0x33FF9800),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Codec Details",
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Driving Safety Alert",
+                                tint = Color(0xFFFFB74D),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Driving Safety Mode Active",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = drivingWarning ?: "Video playback blocked while driving. Playing audio only.",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    lineHeight = 14.sp
+                                )
+                            }
+                            IconButton(
+                                onClick = { controller.clearDrivingWarning() },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -319,6 +409,9 @@ fun NowPlayingScreen(
                     AuraBadge(text = item.bitrate, color = Color(0xFF34D399))
                     if (item.isVideo) {
                         AuraBadge(text = item.resolution ?: "HD", color = Color(0xFFFBBF24))
+                    }
+                    if (isDucked) {
+                        AuraBadge(text = "DUCKED (20%)", color = Color(0xFFFBBC05))
                     }
                 }
 
@@ -447,9 +540,73 @@ fun NowPlayingScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Bottom VLC Tools Toolbar (Equalizer, Speed, Sleep Timer, A-B Loop, Queue)
+                // Interactive Audio Volume Control Bar
+                AuraGlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.adjustVolumeRelative(-1) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (streamVolume == 0) Icons.Default.VolumeMute else Icons.Default.VolumeDown,
+                                contentDescription = "Volume Down",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        val volFraction = if (maxStreamVolume > 0) (streamVolume.toFloat() / maxStreamVolume).coerceIn(0f, 1f) else 0.5f
+                        Slider(
+                            value = volFraction,
+                            onValueChange = { frac ->
+                                val newVol = (frac * maxStreamVolume).toInt()
+                                viewModel.setStreamVolume(newVol)
+                            },
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = accentColor,
+                                inactiveTrackColor = Color(0x33FFFFFF)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        IconButton(
+                            onClick = { viewModel.adjustVolumeRelative(1) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "Volume Up",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        val volPct = if (maxStreamVolume > 0) ((streamVolume.toFloat() / maxStreamVolume) * 100).toInt() else 100
+                        Text(
+                            text = "$volPct%",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFD1D5DB),
+                            modifier = Modifier.width(36.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom AUDI Tools Toolbar (Equalizer, Speed, Sleep Timer, A-B Loop, Queue)
                 AuraGlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = 16.dp

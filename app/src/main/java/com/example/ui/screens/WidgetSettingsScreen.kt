@@ -76,7 +76,7 @@ fun WidgetSettingsScreen(
     val accentTheme by viewModel.accentTheme.collectAsState()
     val accentColor = Color(accentTheme.hexColor)
 
-    val widgetThemes = listOf("Matches Skin", "Apple Frosted Glass", "AMOLED Black", "VLC Orange")
+    val widgetThemes = listOf("Matches Skin", "Apple Frosted Glass", "AMOLED Black", "AUDI Amber")
 
     Column(
         modifier = modifier
@@ -119,13 +119,13 @@ fun WidgetSettingsScreen(
 
         val previewBgColor = when (widgetConfig.widgetTheme) {
             "AMOLED Black" -> Color.Black
-            "VLC Orange" -> Color(0xFF1E140C)
+            "AUDI Amber" -> Color(0xFF1E140C)
             "Apple Frosted Glass" -> Color(0x33FFFFFF)
             else -> Color(0xF2131522)
         }
 
         val previewAccent = when (widgetConfig.widgetTheme) {
-            "VLC Orange" -> Color(0xFFFF6A00)
+            "AUDI Amber" -> Color(0xFFFF6A00)
             "Apple Frosted Glass" -> Color(0xFFFA233B)
             "AMOLED Black" -> Color(0xFF30D158)
             else -> accentColor
