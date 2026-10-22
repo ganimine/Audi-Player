@@ -205,11 +205,12 @@ fun AppleMiniPlayer(
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = currentMedia.artist,
+                                text = "${currentMedia.artist} • ${currentMedia.formattedFileSize}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFB0B3C6),
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             AuraBadge(

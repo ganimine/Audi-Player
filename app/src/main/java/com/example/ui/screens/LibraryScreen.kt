@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -50,6 +51,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -73,6 +75,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.model.ContentTypeFilter
 import com.example.model.MediaItemData
 import com.example.ui.components.ArtworkCover
 import com.example.ui.components.AuraBadge
@@ -92,12 +95,15 @@ fun LibraryScreen(
     val isPlaying by controller.isPlaying.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val activeFilter by viewModel.activeFilter.collectAsState()
+    val mediaFilterConfig by viewModel.mediaFilterConfig.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
-    val strict4to5MbFilter by viewModel.strict4to5MbFilter.collectAsState()
     val accentTheme by viewModel.accentTheme.collectAsState()
     val accentColor = Color(accentTheme.hexColor)
     val showVideoFiles by viewModel.showVideoFiles.collectAsState()
-    val filters = if (showVideoFiles) {
+    val allowsVideo = showVideoFiles ||
+            mediaFilterConfig.contentType == ContentTypeFilter.VIDEO_ONLY ||
+            mediaFilterConfig.contentType == ContentTypeFilter.BOTH
+    val filters = if (allowsVideo) {
         listOf("All", "4MB - 5MB Only", "Audio", "Video", "Albums", "Large Files (>2.5MB)")
     } else {
         listOf("All", "4MB - 5MB Only", "Audio", "Albums", "Large Files (>2.5MB)")
@@ -139,56 +145,92 @@ fun LibraryScreen(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Title & Scan button
+        // Title, Filter button & Scan button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Media Library",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
                 Text(
-                    text = "${mediaList.size} tracks & albums loaded",
+                    text = "${mediaList.size} tracks & albums matching filters",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF9CA3AF)
                 )
             }
 
-            Surface(
-                onClick = { checkAndScanStorage() },
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0x33FFFFFF),
-                modifier = Modifier.testTag("scan_device_storage_button")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                // Dedicated Content & File-Size Filter Button
+                Surface(
+                    onClick = { viewModel.setFilterSheetOpen(true) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (mediaFilterConfig.isCustomOrNonDefault) accentColor.copy(alpha = 0.25f) else Color(0x33FFFFFF),
+                    border = if (mediaFilterConfig.isCustomOrNonDefault) {
+                        androidx.compose.foundation.BorderStroke(1.dp, accentColor)
+                    } else null,
+                    modifier = Modifier.testTag("library_filter_button")
                 ) {
-                    if (isScanning) {
-                        CircularProgressIndicator(
-                            color = accentColor,
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Scan Storage",
-                            tint = accentColor,
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Open Content & Size Filter",
+                            tint = if (mediaFilterConfig.isCustomOrNonDefault) accentColor else Color.White,
                             modifier = Modifier.size(18.dp)
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (mediaFilterConfig.isCustomOrNonDefault) "Filtered" else "Filter",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isScanning) "Scanning..." else "Scan Storage",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                }
+
+                // Scan Storage Button
+                Surface(
+                    onClick = { checkAndScanStorage() },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0x33FFFFFF),
+                    modifier = Modifier.testTag("scan_device_storage_button")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        if (isScanning) {
+                            CircularProgressIndicator(
+                                color = accentColor,
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Scan Storage",
+                                tint = accentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isScanning) "Scanning..." else "Scan",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }
@@ -273,38 +315,61 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 4MB-5MB & Call Recording Policy Note
+        // Unobtrusive Active Filter Indicator & Quick Reopen / Reset Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0x18FFFFFF))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (mediaFilterConfig.isCustomOrNonDefault) accentColor.copy(alpha = 0.14f) else Color(0x18FFFFFF))
+                .clickable { viewModel.setFilterSheetOpen(true) }
+                .padding(horizontal = 10.dp, vertical = 7.dp)
+                .testTag("active_filter_indicator_bar"),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 AuraBadge(
-                    text = if (strict4to5MbFilter) "4MB–5MB Strict" else "All Sizes",
+                    text = mediaFilterConfig.summaryLabel,
                     color = accentColor
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Call recordings excluded",
                     fontSize = 11.sp,
-                    color = Color(0xFFD1D5DB)
+                    color = Color(0xFFD1D5DB),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Text(
-                text = if (strict4to5MbFilter) "Tap to change" else "Filtered",
-                fontSize = 10.sp,
-                color = accentColor,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable {
-                    viewModel.setStrict4to5MbFilter(!strict4to5MbFilter)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (mediaFilterConfig.isCustomOrNonDefault || activeFilter != "All") {
+                    Text(
+                        text = "Reset",
+                        fontSize = 11.sp,
+                        color = Color(0xFFF87171),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable { viewModel.resetMediaFilter() }
+                            .testTag("library_reset_filters_button")
+                    )
                 }
-            )
+                Text(
+                    text = "Configure",
+                    fontSize = 11.sp,
+                    color = accentColor,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable {
+                        viewModel.setFilterSheetOpen(true)
+                    }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -314,7 +379,12 @@ fun LibraryScreen(
             // Group by Album Name and show Album Cards with Art
             val albumGroups = mediaList.groupBy { it.album }
             if (albumGroups.isEmpty()) {
-                EmptyLibraryView(onScan = { checkAndScanStorage() })
+                EmptyLibraryView(
+                    hasActiveFilters = mediaFilterConfig.isCustomOrNonDefault || activeFilter != "All",
+                    onResetFilters = { viewModel.resetMediaFilter() },
+                    onOpenFilters = { viewModel.setFilterSheetOpen(true) },
+                    onScan = { checkAndScanStorage() }
+                )
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -376,7 +446,12 @@ fun LibraryScreen(
         } else {
             // Standard Track List
             if (mediaList.isEmpty()) {
-                EmptyLibraryView(onScan = { checkAndScanStorage() })
+                EmptyLibraryView(
+                    hasActiveFilters = mediaFilterConfig.isCustomOrNonDefault || activeFilter != "All",
+                    onResetFilters = { viewModel.resetMediaFilter() },
+                    onOpenFilters = { viewModel.setFilterSheetOpen(true) },
+                    onScan = { checkAndScanStorage() }
+                )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 120.dp),
@@ -457,7 +532,12 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun EmptyLibraryView(onScan: () -> Unit) {
+private fun EmptyLibraryView(
+    hasActiveFilters: Boolean,
+    onResetFilters: () -> Unit,
+    onOpenFilters: () -> Unit,
+    onScan: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -468,26 +548,51 @@ private fun EmptyLibraryView(onScan: () -> Unit) {
             Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF6B7280), modifier = Modifier.size(48.dp))
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "No media files found",
+                text = if (hasActiveFilters) "No media files match active filters" else "No media files found",
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Tap 'Scan Storage' to scan device music and videos, or open files above 2.5MB using the file picker.",
+                text = if (hasActiveFilters) {
+                    "Try adjusting your content type or file-size limits, or reset filters to view all library items."
+                } else {
+                    "Tap 'Scan Storage' to scan device music and videos, or open files using the file picker."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF9CA3AF),
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onScan,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Scan Device Storage")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (hasActiveFilters) {
+                    OutlinedButton(
+                        onClick = onResetFilters,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.testTag("empty_state_reset_filters_button")
+                    ) {
+                        Text("Reset Filters", color = Color.White)
+                    }
+                    Button(
+                        onClick = onOpenFilters,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Edit Filters")
+                    }
+                } else {
+                    Button(
+                        onClick = onScan,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Scan Device Storage")
+                    }
+                }
             }
         }
     }

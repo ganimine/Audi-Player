@@ -44,5 +44,71 @@ class ExampleUnitTest {
     fun testGooglePalette() {
         assertEquals("Google palette should have 4 brand colors", 4, GOOGLE_PALETTE.size)
     }
+
+    @Test
+    fun testMediaFilterConfigValidationAndUnits() {
+        val validConfig = com.example.model.MediaFilterConfig(
+            contentType = com.example.model.ContentTypeFilter.BOTH,
+            sizePreset = com.example.model.SizePreset.CUSTOM,
+            includeAllSizes = false,
+            minSizeValue = 500.0,
+            minSizeUnit = com.example.model.SizeUnit.KB,
+            maxSizeValue = 10.0,
+            maxSizeUnit = com.example.model.SizeUnit.MB
+        )
+        assertTrue("500 KB to 10 MB should be valid", validConfig.isValid)
+        assertNull(validConfig.validationErrorMessage)
+
+        val invalidConfig = com.example.model.MediaFilterConfig(
+            contentType = com.example.model.ContentTypeFilter.AUDIO_ONLY,
+            sizePreset = com.example.model.SizePreset.CUSTOM,
+            includeAllSizes = false,
+            minSizeValue = 2.0,
+            minSizeUnit = com.example.model.SizeUnit.GB,
+            maxSizeValue = 50.0,
+            maxSizeUnit = com.example.model.SizeUnit.MB
+        )
+        assertFalse("2 GB min > 50 MB max should be invalid", invalidConfig.isValid)
+        assertNotNull(invalidConfig.validationErrorMessage)
+    }
+
+    @Test
+    fun testMediaFilterConfigContentTypeAndSizeMatching() {
+        val audio4Mb = MediaItemData(
+            id = "a1",
+            title = "Song 4.5MB",
+            uri = "content://audio/1",
+            isVideo = false,
+            fileSize = (4.5 * 1024 * 1024).toLong()
+        )
+        val video120Mb = MediaItemData(
+            id = "v1",
+            title = "Video 120MB",
+            uri = "content://video/1",
+            isVideo = true,
+            fileSize = 120L * 1024 * 1024
+        )
+
+        val audioOnlySmall = com.example.model.MediaFilterConfig.fromPreset(
+            com.example.model.ContentTypeFilter.AUDIO_ONLY,
+            com.example.model.SizePreset.SMALL
+        )
+        assertTrue(audioOnlySmall.matches(audio4Mb))
+        assertFalse(audioOnlySmall.matches(video120Mb))
+
+        val videoOnlyLarge = com.example.model.MediaFilterConfig.fromPreset(
+            com.example.model.ContentTypeFilter.VIDEO_ONLY,
+            com.example.model.SizePreset.LARGE
+        )
+        assertFalse(videoOnlyLarge.matches(audio4Mb))
+        assertTrue(videoOnlyLarge.matches(video120Mb))
+
+        val bothAllSizes = com.example.model.MediaFilterConfig.fromPreset(
+            com.example.model.ContentTypeFilter.BOTH,
+            com.example.model.SizePreset.ALL_SIZES
+        )
+        assertTrue(bothAllSizes.matches(audio4Mb))
+        assertTrue(bothAllSizes.matches(video120Mb))
+    }
 }
 

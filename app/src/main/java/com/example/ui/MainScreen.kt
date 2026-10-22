@@ -65,6 +65,7 @@ import com.example.ui.components.TopNavMiniPlayer
 import com.example.ui.screens.AddToPlaylistDialog
 import com.example.ui.screens.CarDashboardScreen
 import com.example.ui.screens.CodecInfoDialog
+import com.example.ui.screens.ContentFilterSheet
 import com.example.ui.screens.EqualizerScreen
 import com.example.ui.screens.FullScreenSearchScreen
 import com.example.ui.screens.HeadsetControlsDialog
@@ -94,6 +95,8 @@ fun MainScreen(
     val isNowPlayingExpanded by viewModel.isNowPlayingExpanded.collectAsState()
     val isCarDashboardOpen by viewModel.isCarDashboardOpen.collectAsState()
     val isFullScreenSearchOpen by viewModel.isFullScreenSearchOpen.collectAsState()
+    val isFilterSheetOpen by viewModel.isFilterSheetOpen.collectAsState()
+    val mediaFilterConfig by viewModel.mediaFilterConfig.collectAsState()
     val isCodecInfoOpen by viewModel.isCodecInfoOpen.collectAsState()
     val isQueueSheetOpen by viewModel.isQueueSheetOpen.collectAsState()
     val isStreamUrlOpen by viewModel.isStreamUrlDialogOpen.collectAsState()
@@ -118,8 +121,10 @@ fun MainScreen(
     var isWidgetSettingsOpen by remember { mutableStateOf(false) }
 
     // Intercept Back button if modal/sheet or dialog is open
-    BackHandler(enabled = isFullScreenSearchOpen || isNowPlayingExpanded || isCarDashboardOpen || isWidgetSettingsOpen || isHeadsetControlsOpen) {
-        if (isFullScreenSearchOpen) {
+    BackHandler(enabled = isFilterSheetOpen || isFullScreenSearchOpen || isNowPlayingExpanded || isCarDashboardOpen || isWidgetSettingsOpen || isHeadsetControlsOpen) {
+        if (isFilterSheetOpen) {
+            viewModel.setFilterSheetOpen(false)
+        } else if (isFullScreenSearchOpen) {
             viewModel.setFullScreenSearchOpen(false)
         } else if (isCarDashboardOpen) {
             viewModel.setCarDashboardOpen(false)
@@ -217,6 +222,8 @@ fun MainScreen(
                                 },
                                 onOpenCarDashboard = { viewModel.setCarDashboardOpen(true) },
                                 onOpenSearch = { viewModel.setFullScreenSearchOpen(true) },
+                                onOpenFilter = { viewModel.setFilterSheetOpen(true) },
+                                isFilterActive = mediaFilterConfig.isCustomOrNonDefault,
                                 statusMessage = importStatusMessage ?: interruptionStatus,
                                 onDismissStatusMessage = {
                                     viewModel.clearImportStatusMessage()
@@ -232,7 +239,7 @@ fun MainScreen(
                                     .fillMaxWidth()
                                     .navigationBarsPadding()
                             ) {
-                                // Floating Mini Player
+                                // Floating Mini Player (Bottom Bar Only)
                                 if (currentMedia != null && !isNowPlayingExpanded) {
                                     AppleMiniPlayer(
                                         currentMedia = currentMedia!!,
@@ -318,7 +325,7 @@ fun MainScreen(
                     }
                 }
 
-                // If wide screen, render Mini Player floating on top right / bottom right
+                // If wide screen, render Mini Player floating at bottom right
                 if (isWideScreen && currentMedia != null && !isNowPlayingExpanded) {
                     Box(
                         modifier = Modifier
@@ -377,6 +384,14 @@ fun MainScreen(
             FullScreenSearchScreen(
                 viewModel = viewModel,
                 onDismiss = { viewModel.setFullScreenSearchOpen(false) }
+            )
+        }
+
+        // Dedicated Content Selection & File-Size Filter Panel (auto-closes on apply/reset)
+        if (isFilterSheetOpen) {
+            ContentFilterSheet(
+                viewModel = viewModel,
+                onDismiss = { viewModel.setFilterSheetOpen(false) }
             )
         }
 

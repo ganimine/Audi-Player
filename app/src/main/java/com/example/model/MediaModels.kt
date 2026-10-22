@@ -5,6 +5,168 @@ enum class MediaType {
     VIDEO
 }
 
+enum class ContentTypeFilter(val label: String, val description: String) {
+    AUDIO_ONLY("Audio Files", "Music, songs & lossless audio tracks"),
+    VIDEO_ONLY("Video Files", "4K/HD videos & music videos"),
+    BOTH("Both Audio & Video", "All audio tracks and video files")
+}
+
+enum class SizeUnit(val symbol: String, val bytesMultiplier: Long) {
+    KB("KB", 1024L),
+    MB("MB", 1024L * 1024L),
+    GB("GB", 1024L * 1024L * 1024L)
+}
+
+enum class SizePreset(val label: String, val subtitle: String) {
+    ALL_SIZES("All Sizes", "Include all file sizes"),
+    SMALL("Small", "Under 5 MB"),
+    TARGET_4_TO_5_MB("4 MB – 5 MB", "Standard 4–5.5 MB tracks"),
+    MEDIUM("Medium", "5 MB to 50 MB"),
+    LARGE("Large", "Over 50 MB"),
+    CUSTOM("Custom", "Specify min & max limits")
+}
+
+data class MediaFilterConfig(
+    val contentType: ContentTypeFilter = ContentTypeFilter.AUDIO_ONLY,
+    val sizePreset: SizePreset = SizePreset.ALL_SIZES,
+    val includeAllSizes: Boolean = true,
+    val minSizeValue: Double = 0.0,
+    val minSizeUnit: SizeUnit = SizeUnit.MB,
+    val maxSizeValue: Double = 500.0,
+    val maxSizeUnit: SizeUnit = SizeUnit.MB
+) {
+    val minBytes: Long
+        get() = if (includeAllSizes || sizePreset == SizePreset.ALL_SIZES) {
+            0L
+        } else {
+            (minSizeValue.coerceAtLeast(0.0) * minSizeUnit.bytesMultiplier).toLong()
+        }
+
+    val maxBytes: Long
+        get() = if (includeAllSizes || sizePreset == SizePreset.ALL_SIZES) {
+            Long.MAX_VALUE
+        } else {
+            (maxSizeValue.coerceAtLeast(0.0) * maxSizeUnit.bytesMultiplier).toLong()
+        }
+
+    val isValid: Boolean
+        get() = if (includeAllSizes || sizePreset == SizePreset.ALL_SIZES) {
+            true
+        } else {
+            minSizeValue >= 0.0 && maxSizeValue > 0.0 && minBytes <= maxBytes
+        }
+
+    val validationErrorMessage: String?
+        get() = when {
+            includeAllSizes || sizePreset == SizePreset.ALL_SIZES -> null
+            minSizeValue < 0.0 || maxSizeValue <= 0.0 -> "File size limits must be greater than 0."
+            minBytes > maxBytes -> "Minimum file size cannot exceed maximum file size."
+            else -> null
+        }
+
+    val isCustomOrNonDefault: Boolean
+        get() = contentType != ContentTypeFilter.AUDIO_ONLY ||
+                (!includeAllSizes && sizePreset != SizePreset.ALL_SIZES)
+
+    val summaryLabel: String
+        get() {
+            val typePart = when (contentType) {
+                ContentTypeFilter.AUDIO_ONLY -> "Audio"
+                ContentTypeFilter.VIDEO_ONLY -> "Video"
+                ContentTypeFilter.BOTH -> "Audio & Video"
+            }
+            val sizePart = if (includeAllSizes || sizePreset == SizePreset.ALL_SIZES) {
+                "All Sizes"
+            } else if (sizePreset != SizePreset.CUSTOM) {
+                sizePreset.label
+            } else {
+                "${formatValue(minSizeValue)} ${minSizeUnit.symbol} – ${formatValue(maxSizeValue)} ${maxSizeUnit.symbol}"
+            }
+            return "$typePart • $sizePart"
+        }
+
+    fun matches(item: MediaItemData): Boolean {
+        val matchesType = when (contentType) {
+            ContentTypeFilter.AUDIO_ONLY -> !item.isVideo
+            ContentTypeFilter.VIDEO_ONLY -> item.isVideo
+            ContentTypeFilter.BOTH -> true
+        }
+        if (!matchesType) return false
+
+        if (includeAllSizes || sizePreset == SizePreset.ALL_SIZES) return true
+
+        // Stream items with 0 fileSize are included unless strict size filter is applied to local files
+        if (item.fileSize <= 0L) return true
+
+        return item.fileSize in minBytes..maxBytes
+    }
+
+    private fun formatValue(v: Double): String {
+        return if (v % 1.0 == 0.0) v.toLong().toString() else String.format("%.1f", v)
+    }
+
+    companion object {
+        fun fromPreset(contentType: ContentTypeFilter, preset: SizePreset): MediaFilterConfig {
+            return when (preset) {
+                SizePreset.ALL_SIZES -> MediaFilterConfig(
+                    contentType = contentType,
+                    sizePreset = SizePreset.ALL_SIZES,
+                    includeAllSizes = true,
+                    minSizeValue = 0.0,
+                    minSizeUnit = SizeUnit.MB,
+                    maxSizeValue = 500.0,
+                    maxSizeUnit = SizeUnit.MB
+                )
+                SizePreset.SMALL -> MediaFilterConfig(
+                    contentType = contentType,
+                    sizePreset = SizePreset.SMALL,
+                    includeAllSizes = false,
+                    minSizeValue = 0.0,
+                    minSizeUnit = SizeUnit.KB,
+                    maxSizeValue = 5.0,
+                    maxSizeUnit = SizeUnit.MB
+                )
+                SizePreset.TARGET_4_TO_5_MB -> MediaFilterConfig(
+                    contentType = contentType,
+                    sizePreset = SizePreset.TARGET_4_TO_5_MB,
+                    includeAllSizes = false,
+                    minSizeValue = 4.0,
+                    minSizeUnit = SizeUnit.MB,
+                    maxSizeValue = 5.5,
+                    maxSizeUnit = SizeUnit.MB
+                )
+                SizePreset.MEDIUM -> MediaFilterConfig(
+                    contentType = contentType,
+                    sizePreset = SizePreset.MEDIUM,
+                    includeAllSizes = false,
+                    minSizeValue = 5.0,
+                    minSizeUnit = SizeUnit.MB,
+                    maxSizeValue = 50.0,
+                    maxSizeUnit = SizeUnit.MB
+                )
+                SizePreset.LARGE -> MediaFilterConfig(
+                    contentType = contentType,
+                    sizePreset = SizePreset.LARGE,
+                    includeAllSizes = false,
+                    minSizeValue = 50.0,
+                    minSizeUnit = SizeUnit.MB,
+                    maxSizeValue = 10.0,
+                    maxSizeUnit = SizeUnit.GB
+                )
+                SizePreset.CUSTOM -> MediaFilterConfig(
+                    contentType = contentType,
+                    sizePreset = SizePreset.CUSTOM,
+                    includeAllSizes = false,
+                    minSizeValue = 1.0,
+                    minSizeUnit = SizeUnit.MB,
+                    maxSizeValue = 100.0,
+                    maxSizeUnit = SizeUnit.MB
+                )
+            }
+        }
+    }
+}
+
 enum class RepeatMode {
     OFF,
     ALL,

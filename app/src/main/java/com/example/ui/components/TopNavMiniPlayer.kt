@@ -1,8 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,12 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -36,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -46,8 +40,9 @@ import androidx.compose.ui.unit.sp
 import com.example.model.MediaItemData
 
 /**
- * Top Navigation Header with Google-colored player title and
- * integrated Top Mini Player Capsule when music player is minimized.
+ * Top App Bar Header dedicated to branding, navigation, search, content filtering, and page actions.
+ * The currently playing mini-player is displayed exclusively in the bottom bar (AppleMiniPlayer)
+ * so there is never a duplicate player interface at the top.
  */
 @Composable
 fun TopNavMiniPlayer(
@@ -62,6 +57,8 @@ fun TopNavMiniPlayer(
     onOpenFilePicker: () -> Unit,
     onOpenCarDashboard: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
+    onOpenFilter: () -> Unit = {},
+    isFilterActive: Boolean = false,
     statusMessage: String? = null,
     onDismissStatusMessage: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -145,11 +142,15 @@ fun TopNavMiniPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Single Google-colored Branding that automatically varies depending on app resize
+                    // Left: Google-colored Branding
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clickable { onExpandNowPlaying() }
+                            .clickable {
+                                if (currentMedia != null) {
+                                    onExpandNowPlaying()
+                                }
+                            }
                             .testTag("app_brand_title")
                     ) {
                         GoogleColoredText(
@@ -159,7 +160,7 @@ fun TopNavMiniPlayer(
                         )
                     }
 
-                    // Right: Action shortcuts (Headset gesture controls, Open File)
+                    // Right: Dedicated Navigation, Search, Filter & Page Action Shortcuts
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -178,6 +179,36 @@ fun TopNavMiniPlayer(
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
                             )
+                        }
+
+                        // Content & File-Size Filter shortcut with active indicator dot
+                        Box {
+                            IconButton(
+                                onClick = onOpenFilter,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        if (isFilterActive) accentColor.copy(alpha = 0.25f) else Color(0x22FFFFFF),
+                                        CircleShape
+                                    )
+                                    .testTag("top_filter_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = "Content & Size Filter",
+                                    tint = if (isFilterActive) accentColor else Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            if (isFilterActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .align(Alignment.TopEnd)
+                                        .clip(CircleShape)
+                                        .background(accentColor)
+                                )
+                            }
                         }
 
                         // Headset multi-tap controls shortcut
@@ -226,99 +257,6 @@ fun TopNavMiniPlayer(
                                 tint = Color(0xFFFF9800),
                                 modifier = Modifier.size(19.dp)
                             )
-                        }
-                    }
-                }
-            }
-
-            // Top Mini Player bar when music player is minimized and a track is loaded
-            AnimatedVisibility(
-                visible = currentMedia != null,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                if (currentMedia != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(8.dp, RoundedCornerShape(14.dp))
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0x33FFFFFF))
-                            .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                            .clickable { onExpandNowPlaying() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                            .testTag("top_nav_mini_player")
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ArtworkCover(
-                                media = currentMedia,
-                                modifier = Modifier.size(36.dp),
-                                cornerRadius = 8.dp,
-                                showPlayingBadge = false
-                            )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = currentMedia.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = currentMedia.artist,
-                                        fontSize = 11.sp,
-                                        color = Color(0xFFD1D5DB),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    AuraBadge(text = currentMedia.codec, color = GoogleYellow)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // Mini Controls in Top Navigation Menu
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(accentColor)
-                                        .clickable { onTogglePlayPause() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pause" else "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                IconButton(
-                                    onClick = onNext,
-                                    modifier = Modifier.size(30.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SkipNext,
-                                        contentDescription = "Next",
-                                        tint = Color.White.copy(alpha = 0.9f),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
                         }
                     }
                 }

@@ -13,9 +13,12 @@ import com.example.data.db.PlaylistEntity
 import com.example.data.db.PlaylistItemEntity
 import com.example.headset.HeadsetController
 import com.example.model.AccentTheme
+import com.example.model.ContentTypeFilter
 import com.example.model.CustomSkinConfig
+import com.example.model.MediaFilterConfig
 import com.example.model.MediaItemData
 import com.example.model.Playlist
+import com.example.model.SizePreset
 import com.example.model.SkinPreset
 import com.example.model.VisualizerStyle
 import com.example.model.WidgetSettingsConfig
@@ -64,6 +67,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _isFullScreenSearchOpen = MutableStateFlow(false)
     val isFullScreenSearchOpen: StateFlow<Boolean> = _isFullScreenSearchOpen.asStateFlow()
+
+    // Dedicated Content Type & File-Size Filter Configuration
+    private val _mediaFilterConfig = MutableStateFlow(settingsManager.getMediaFilterConfig())
+    val mediaFilterConfig: StateFlow<MediaFilterConfig> = _mediaFilterConfig.asStateFlow()
+
+    private val _isFilterSheetOpen = MutableStateFlow(false)
+    val isFilterSheetOpen: StateFlow<Boolean> = _isFilterSheetOpen.asStateFlow()
 
     val playerController = AuraPlayerController.getOrCreate(application)
 
@@ -176,12 +186,78 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _isHeadsetControlsDialogOpen.value = open
     }
 
-    // 4MB-5MB strict size filter toggle (Default: true per user request)
-    private val _strict4to5MbFilter = MutableStateFlow(true)
+    // 4MB-5MB strict size filter toggle
+    private val _strict4to5MbFilter = MutableStateFlow(
+        _mediaFilterConfig.value.sizePreset == SizePreset.TARGET_4_TO_5_MB
+    )
     val strict4to5MbFilter: StateFlow<Boolean> = _strict4to5MbFilter.asStateFlow()
 
     fun setStrict4to5MbFilter(enabled: Boolean) {
         _strict4to5MbFilter.value = enabled
+        val currentConfig = _mediaFilterConfig.value
+        val updatedConfig = if (enabled) {
+            MediaFilterConfig.fromPreset(currentConfig.contentType, SizePreset.TARGET_4_TO_5_MB)
+        } else {
+            MediaFilterConfig.fromPreset(currentConfig.contentType, SizePreset.ALL_SIZES)
+        }
+        _mediaFilterConfig.value = updatedConfig
+        settingsManager.saveMediaFilterConfig(updatedConfig)
+    }
+
+    fun setFilterSheetOpen(open: Boolean) {
+        _isFilterSheetOpen.value = open
+    }
+
+    /**
+     * Applies content type and file-size filters immediately without interrupting active playback,
+     * and automatically closes the filter panel.
+     */
+    fun applyMediaFilter(config: MediaFilterConfig) {
+        if (!config.isValid) return
+        _mediaFilterConfig.value = config
+        settingsManager.saveMediaFilterConfig(config)
+        _strict4to5MbFilter.value = (config.sizePreset == SizePreset.TARGET_4_TO_5_MB)
+
+        // Sync video file visibility if user selected Video or Both
+        val videosAllowed = config.contentType == ContentTypeFilter.VIDEO_ONLY ||
+                config.contentType == ContentTypeFilter.BOTH
+        if (_showVideoFiles.value != videosAllowed) {
+            _showVideoFiles.value = videosAllowed
+            settingsManager.showVideoFiles = videosAllowed
+        }
+
+        // Sync quick chip filter without interrupting playback
+        _activeFilter.value = when {
+            config.sizePreset == SizePreset.TARGET_4_TO_5_MB -> "4MB - 5MB Only"
+            config.contentType == ContentTypeFilter.VIDEO_ONLY -> "Video"
+            config.contentType == ContentTypeFilter.AUDIO_ONLY && _activeFilter.value == "Video" -> "All"
+            else -> if (_activeFilter.value == "Albums") "Albums" else "All"
+        }
+
+        // Update browsable library list on controller without stopping or restarting current media
+        val updatedLibrary = _masterMediaList.value.filter { !it.isCallRecording() && config.matches(it) }
+        playerController.setLibraryTracks(updatedLibrary)
+
+        // Automatically close the filter panel after applying
+        _isFilterSheetOpen.value = false
+    }
+
+    /**
+     * Resets content and file-size filters to default (Audio Only, All Sizes) without interrupting playback.
+     */
+    fun resetMediaFilter() {
+        val defaultConfig = MediaFilterConfig(
+            contentType = if (_showVideoFiles.value) ContentTypeFilter.BOTH else ContentTypeFilter.AUDIO_ONLY,
+            sizePreset = SizePreset.ALL_SIZES,
+            includeAllSizes = true
+        )
+        _mediaFilterConfig.value = defaultConfig
+        settingsManager.saveMediaFilterConfig(defaultConfig)
+        _strict4to5MbFilter.value = false
+        _activeFilter.value = "All"
+        val updatedLibrary = _masterMediaList.value.filter { !it.isCallRecording() && defaultConfig.matches(it) }
+        playerController.setLibraryTracks(updatedLibrary)
+        _isFilterSheetOpen.value = false
     }
 
     // Import status notification message
@@ -200,28 +276,51 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _activeFilter = MutableStateFlow("All") // "All", "4MB - 5MB Only", "Audio", "Video", "Large Files (>2.5MB)"
+    private val _activeFilter = MutableStateFlow("All") // "All", "4MB - 5MB Only", "Audio", "Video", "Albums", "Large Files (>2.5MB)"
     val activeFilter: StateFlow<String> = _activeFilter.asStateFlow()
 
-    // Filtered media list
+    // Filtered media list combining master list, search query, quick chip filter, video visibility, and MediaFilterConfig
     val filteredMediaList: StateFlow<List<MediaItemData>> = combine(
         _masterMediaList,
         _searchQuery,
         _activeFilter,
-        _showVideoFiles
-    ) { list, query, filter, showVideos ->
+        _showVideoFiles,
+        _mediaFilterConfig
+    ) { list, query, filter, showVideos, filterConfig ->
         list.filter { item ->
             // Always exclude call recording files
             if (item.isCallRecording()) return@filter false
 
-            // Hide videos by default unless showVideoFiles is enabled OR user explicitly selected "Video" filter
-            if (item.isVideo && !showVideos && filter != "Video") {
+            // Evaluate structured MediaFilterConfig (Content Type + Min/Max File Size)
+            val allowsVideoByChipOrConfig = showVideos ||
+                    filter == "Video" ||
+                    filterConfig.contentType == ContentTypeFilter.VIDEO_ONLY ||
+                    filterConfig.contentType == ContentTypeFilter.BOTH
+
+            if (item.isVideo && !allowsVideoByChipOrConfig) {
                 return@filter false
+            }
+
+            if (filterConfig.contentType == ContentTypeFilter.VIDEO_ONLY && !item.isVideo && filter != "Audio") {
+                return@filter false
+            }
+
+            if (filterConfig.contentType == ContentTypeFilter.AUDIO_ONLY && item.isVideo && filter != "Video") {
+                return@filter false
+            }
+
+            // File size check from MediaFilterConfig
+            if (!filterConfig.includeAllSizes && filterConfig.sizePreset != SizePreset.ALL_SIZES) {
+                if (item.fileSize > 0L && item.fileSize !in filterConfig.minBytes..filterConfig.maxBytes) {
+                    return@filter false
+                }
             }
 
             val matchesQuery = query.isBlank() ||
                     item.title.contains(query, ignoreCase = true) ||
                     item.artist.contains(query, ignoreCase = true) ||
+                    item.album.contains(query, ignoreCase = true) ||
+                    item.genre.contains(query, ignoreCase = true) ||
                     item.codec.contains(query, ignoreCase = true) ||
                     item.container.contains(query, ignoreCase = true)
 

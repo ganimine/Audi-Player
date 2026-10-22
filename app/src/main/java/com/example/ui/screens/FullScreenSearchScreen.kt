@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.ContentTypeFilter
 import com.example.model.MediaItemData
 import com.example.model.Playlist
 import com.example.ui.components.ArtworkCover
@@ -91,7 +93,7 @@ import com.example.viewmodel.PlayerViewModel
  * - Playlists
  * - Folders and local music files
  * - Audio metadata
- * - Videos (strictly user-controlled via Show Video Files setting or filter)
+ * - Videos (strictly user-controlled via Show Video Files setting or ContentTypeFilter)
  */
 @Composable
 fun FullScreenSearchScreen(
@@ -102,6 +104,7 @@ fun FullScreenSearchScreen(
     val masterList by viewModel.masterMediaList.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val showVideoFiles by viewModel.showVideoFiles.collectAsState()
+    val mediaFilterConfig by viewModel.mediaFilterConfig.collectAsState()
     val searchHistory by viewModel.searchHistory.collectAsState()
     val accentTheme by viewModel.accentTheme.collectAsState()
     val accentColor = Color(accentTheme.hexColor)
@@ -121,28 +124,37 @@ fun FullScreenSearchScreen(
         onDismiss()
     }
 
-    // Filter available filters based on showVideoFiles setting
-    val availableFilters = remember(showVideoFiles) {
-        if (showVideoFiles) {
+    val allowsVideos = showVideoFiles ||
+            mediaFilterConfig.contentType == ContentTypeFilter.VIDEO_ONLY ||
+            mediaFilterConfig.contentType == ContentTypeFilter.BOTH
+
+    // Filter available filters based on video visibility and content type filter
+    val availableFilters = remember(allowsVideos) {
+        if (allowsVideos) {
             listOf("All", "Songs", "Artists", "Albums", "Playlists", "Folders", "Videos")
         } else {
             listOf("All", "Songs", "Artists", "Albums", "Playlists", "Folders")
         }
     }
 
-    // Dynamic search evaluation across library
-    val searchResults by remember(searchQuery, masterList, playlists, showVideoFiles) {
+    // Dynamic search evaluation across library respecting active content type and file-size filter
+    val searchResults by remember(searchQuery, masterList, playlists, allowsVideos, mediaFilterConfig) {
         derivedStateOf {
             val q = searchQuery.trim()
             if (q.isBlank()) {
                 SearchResults()
             } else {
-                // 1. Songs filter
-                val matchingSongs = masterList.filter { item ->
-                    // Exclude call recordings strictly
+                val baseFiltered = masterList.filter { item ->
                     if (item.isCallRecording()) return@filter false
-                    // If video, only include if showVideoFiles is enabled
-                    if (item.isVideo && !showVideoFiles) return@filter false
+                    if (!mediaFilterConfig.matches(item) && !(item.isVideo && allowsVideos && mediaFilterConfig.includeAllSizes)) {
+                        return@filter false
+                    }
+                    true
+                }
+
+                // 1. Songs filter
+                val matchingSongs = baseFiltered.filter { item ->
+                    if (item.isVideo && !allowsVideos) return@filter false
 
                     item.title.contains(q, ignoreCase = true) ||
                             item.artist.contains(q, ignoreCase = true) ||
@@ -153,12 +165,12 @@ fun FullScreenSearchScreen(
                 }
 
                 // 2. Artists grouping
-                val matchingArtists = masterList.filter { !it.isVideo || showVideoFiles }
+                val matchingArtists = baseFiltered.filter { !it.isVideo || allowsVideos }
                     .filter { it.artist.contains(q, ignoreCase = true) }
                     .groupBy { it.artist }
 
                 // 3. Albums grouping
-                val matchingAlbums = masterList.filter { !it.isVideo || showVideoFiles }
+                val matchingAlbums = baseFiltered.filter { !it.isVideo || allowsVideos }
                     .filter { it.album.contains(q, ignoreCase = true) }
                     .groupBy { it.album }
 
@@ -169,7 +181,7 @@ fun FullScreenSearchScreen(
                 }
 
                 // 5. Folders / local files grouping
-                val matchingFolders = masterList.filter { !it.isVideo || showVideoFiles }
+                val matchingFolders = baseFiltered.filter { !it.isVideo || allowsVideos }
                     .filter { item ->
                         item.uri.contains(q, ignoreCase = true) || item.title.contains(q, ignoreCase = true)
                     }
@@ -182,8 +194,10 @@ fun FullScreenSearchScreen(
                         }
                     }
 
-                // 6. Videos (strictly if showVideoFiles enabled or user chooses videos filter)
-                val matchingVideos = masterList.filter { it.isVideo && (it.title.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true)) }
+                // 6. Videos (strictly if video allowed or user chooses videos filter)
+                val matchingVideos = baseFiltered.filter {
+                    it.isVideo && (it.title.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true))
+                }
 
                 SearchResults(
                     songs = matchingSongs.filter { !it.isVideo },
@@ -272,6 +286,18 @@ fun FullScreenSearchScreen(
                     .testTag("full_page_search_input")
             )
 
+            // Content & File-Size Filter Button inside Search
+            IconButton(
+                onClick = { viewModel.setFilterSheetOpen(true) },
+                modifier = Modifier.testTag("search_filter_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Filter Content & File Size",
+                    tint = if (mediaFilterConfig.isCustomOrNonDefault) accentColor else Color.White
+                )
+            }
+
             TextButton(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("search_cancel_button")
@@ -305,6 +331,39 @@ fun FullScreenSearchScreen(
                     ),
                     shape = RoundedCornerShape(20.dp),
                     border = null
+                )
+            }
+        }
+
+        // Active Content & Size Filter Indicator Banner (when non-default filters are active)
+        if (mediaFilterConfig.isCustomOrNonDefault) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(accentColor.copy(alpha = 0.14f))
+                    .clickable { viewModel.setFilterSheetOpen(true) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AuraBadge(text = "ACTIVE FILTER", color = accentColor)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = mediaFilterConfig.summaryLabel,
+                        fontSize = 11.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Text(
+                    text = "Reset",
+                    fontSize = 11.sp,
+                    color = Color(0xFFF87171),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { viewModel.resetMediaFilter() }
                 )
             }
         }
@@ -456,7 +515,7 @@ fun FullScreenSearchScreen(
             }
         } else {
             // Results matching the query
-            val totalResults = searchResults.totalCount(selectedFilter, showVideoFiles)
+            val totalResults = searchResults.totalCount(selectedFilter, allowsVideos)
 
             if (totalResults == 0) {
                 // Empty state
@@ -494,24 +553,45 @@ fun FullScreenSearchScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Check the spelling or try searching by title, artist, album, genre, or audio codec.",
+                            text = if (mediaFilterConfig.isCustomOrNonDefault) {
+                                "No files match your search and active content/file-size filters (${mediaFilterConfig.summaryLabel})."
+                            } else {
+                                "Check the spelling or try searching by title, artist, album, genre, or audio codec."
+                            },
                             fontSize = 13.sp,
                             color = Color(0xFF9CA3AF),
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(18.dp))
-                        Surface(
-                            onClick = { searchQuery = "" },
-                            shape = RoundedCornerShape(12.dp),
-                            color = accentColor.copy(alpha = 0.2f)
-                        ) {
-                            Text(
-                                text = "Clear Search",
-                                color = accentColor,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Surface(
+                                onClick = { searchQuery = "" },
+                                shape = RoundedCornerShape(12.dp),
+                                color = accentColor.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "Clear Search",
+                                    color = accentColor,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                            if (mediaFilterConfig.isCustomOrNonDefault) {
+                                Surface(
+                                    onClick = { viewModel.resetMediaFilter() },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0x26FFFFFF)
+                                ) {
+                                    Text(
+                                        text = "Reset Filters",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

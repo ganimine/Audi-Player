@@ -2,10 +2,14 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.model.ContentTypeFilter
+import com.example.model.MediaFilterConfig
+import com.example.model.SizePreset
+import com.example.model.SizeUnit
 
 /**
  * Persisted application settings manager using SharedPreferences.
- * Controls startup screen behavior, video file visibility, default navigation, and search history.
+ * Controls startup screen behavior, video file visibility, default navigation, search history, and content/file-size filters.
  */
 class AppSettingsManager(context: Context) {
 
@@ -47,6 +51,46 @@ class AppSettingsManager(context: Context) {
         get() = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, true) // Default: true (no popups)
         set(value) = prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, value).apply()
 
+    fun getMediaFilterConfig(): MediaFilterConfig {
+        val contentTypeName = prefs.getString(
+            KEY_FILTER_CONTENT_TYPE,
+            if (showVideoFiles) ContentTypeFilter.BOTH.name else ContentTypeFilter.AUDIO_ONLY.name
+        ) ?: ContentTypeFilter.AUDIO_ONLY.name
+        val presetName = prefs.getString(KEY_FILTER_SIZE_PRESET, SizePreset.ALL_SIZES.name) ?: SizePreset.ALL_SIZES.name
+        val includeAll = prefs.getBoolean(KEY_FILTER_INCLUDE_ALL_SIZES, true)
+        val minVal = prefs.getFloat(KEY_FILTER_MIN_SIZE_VAL, 0f).toDouble()
+        val maxVal = prefs.getFloat(KEY_FILTER_MAX_SIZE_VAL, 500f).toDouble()
+        val minUnitName = prefs.getString(KEY_FILTER_MIN_SIZE_UNIT, SizeUnit.MB.name) ?: SizeUnit.MB.name
+        val maxUnitName = prefs.getString(KEY_FILTER_MAX_SIZE_UNIT, SizeUnit.MB.name) ?: SizeUnit.MB.name
+
+        val contentType = runCatching { ContentTypeFilter.valueOf(contentTypeName) }.getOrDefault(ContentTypeFilter.AUDIO_ONLY)
+        val preset = runCatching { SizePreset.valueOf(presetName) }.getOrDefault(SizePreset.ALL_SIZES)
+        val minUnit = runCatching { SizeUnit.valueOf(minUnitName) }.getOrDefault(SizeUnit.MB)
+        val maxUnit = runCatching { SizeUnit.valueOf(maxUnitName) }.getOrDefault(SizeUnit.MB)
+
+        return MediaFilterConfig(
+            contentType = contentType,
+            sizePreset = preset,
+            includeAllSizes = includeAll,
+            minSizeValue = minVal,
+            minSizeUnit = minUnit,
+            maxSizeValue = maxVal,
+            maxSizeUnit = maxUnit
+        )
+    }
+
+    fun saveMediaFilterConfig(config: MediaFilterConfig) {
+        prefs.edit()
+            .putString(KEY_FILTER_CONTENT_TYPE, config.contentType.name)
+            .putString(KEY_FILTER_SIZE_PRESET, config.sizePreset.name)
+            .putBoolean(KEY_FILTER_INCLUDE_ALL_SIZES, config.includeAllSizes)
+            .putFloat(KEY_FILTER_MIN_SIZE_VAL, config.minSizeValue.toFloat())
+            .putFloat(KEY_FILTER_MAX_SIZE_VAL, config.maxSizeValue.toFloat())
+            .putString(KEY_FILTER_MIN_SIZE_UNIT, config.minSizeUnit.name)
+            .putString(KEY_FILTER_MAX_SIZE_UNIT, config.maxSizeUnit.name)
+            .apply()
+    }
+
     fun getSearchHistory(): List<String> {
         val raw = prefs.getString(KEY_SEARCH_HISTORY, null) ?: return emptyList()
         return raw.split("|||").filter { it.isNotBlank() }
@@ -85,5 +129,12 @@ class AppSettingsManager(context: Context) {
         private const val KEY_SEARCH_HISTORY_ENABLED = "search_history_enabled"
         private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         private const val KEY_SEARCH_HISTORY = "recent_search_history"
+        private const val KEY_FILTER_CONTENT_TYPE = "filter_content_type"
+        private const val KEY_FILTER_SIZE_PRESET = "filter_size_preset"
+        private const val KEY_FILTER_INCLUDE_ALL_SIZES = "filter_include_all_sizes"
+        private const val KEY_FILTER_MIN_SIZE_VAL = "filter_min_size_val"
+        private const val KEY_FILTER_MAX_SIZE_VAL = "filter_max_size_val"
+        private const val KEY_FILTER_MIN_SIZE_UNIT = "filter_min_size_unit"
+        private const val KEY_FILTER_MAX_SIZE_UNIT = "filter_max_size_unit"
     }
 }

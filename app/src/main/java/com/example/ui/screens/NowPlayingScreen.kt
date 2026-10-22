@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -105,6 +106,7 @@ fun NowPlayingScreen(
     val visualizerStyle by viewModel.visualizerStyle.collectAsState()
     val accentTheme by viewModel.accentTheme.collectAsState()
     val accentColor = Color(accentTheme.hexColor)
+    val mediaFilterConfig by viewModel.mediaFilterConfig.collectAsState()
     val sleepTimerSec by controller.sleepTimerSeconds.collectAsState()
     val isAbLoopActive by controller.isAbLoopActive.collectAsState()
     val isAudioOnlyForVideo by controller.isAudioOnlyForVideo.collectAsState()
@@ -184,7 +186,10 @@ fun NowPlayingScreen(
                     }
 
                     // Playing from Library / Album Label
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
                             text = "PLAYING FROM",
                             fontSize = 10.sp,
@@ -203,6 +208,21 @@ fun NowPlayingScreen(
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Temporary Content & Size Filter overlay trigger (auto-dismisses on apply)
+                        IconButton(
+                            onClick = { viewModel.setFilterSheetOpen(true) },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .testTag("now_playing_filter_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Filter Options",
+                                tint = if (mediaFilterConfig.isCustomOrNonDefault) accentColor else Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
                         IconButton(
                             onClick = { viewModel.setHeadsetControlsDialogOpen(true) },
                             modifier = Modifier.size(38.dp)
